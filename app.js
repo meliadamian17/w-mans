@@ -103,7 +103,7 @@ async function initMap() {
                 resolve();
             }, 10000);
             
-            map.on('load', () => {
+            map.on('load', async () => {
                 clearTimeout(loadTimeout);
                 
                 try {
@@ -118,6 +118,7 @@ async function initMap() {
                     console.warn('Fog effect not supported:', e.message);
                 }
                 
+                await addProvincePolygons(map);
                 addProvinceMarkers(map);
                 
                 appState.mapLoaded = true;
@@ -318,6 +319,158 @@ function addProvinceMarkers(map) {
             selectProvince(provinceId);
         }
     });
+}
+
+async function addProvincePolygons(map) {
+    // Define colors for each province
+    const provinceColors = {
+        'Alberta': '#3b82f6',      // Blue
+        'British Columbia': '#10b981',      // Green
+        'Manitoba': '#f59e0b',      // Orange
+        'New Brunswick': '#8b5cf6',      // Purple
+        'Newfoundland and Labrador': '#ec4899',      // Pink
+        'Northwest Territories': '#14b8a6',      // Teal
+        'Nova Scotia': '#f97316',      // Orange-red
+        'Nunavut': '#06b6d4',      // Cyan
+        'Ontario': '#ef4444',      // Red
+        'Prince Edward Island': '#84cc16',      // Lime
+        'Quebec': '#6366f1',      // Indigo
+        'Saskatchewan': '#eab308',      // Yellow
+        'Yukon': '#a855f7',      // Purple
+    };
+    
+    // Mapping from GeoJSON names to our province IDs
+    const provinceNameToId = {
+        'Alberta': 'ab',
+        'British Columbia': 'bc',
+        'Manitoba': 'mb',
+        'New Brunswick': 'nb',
+        'Newfoundland and Labrador': 'nl',
+        'Northwest Territories': 'nt',
+        'Nova Scotia': 'ns',
+        'Nunavut': 'nu',
+        'Ontario': 'on',
+        'Prince Edward Island': 'pe',
+        'Quebec': 'qc',
+        'Saskatchewan': 'sk',
+        'Yukon': 'yt'
+    };
+    
+    try {
+        // Load Canadian province boundaries from a GeoJSON source
+        const response = await fetch('https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/canada.geojson');
+        const canadaGeoJSON = await response.json();
+        
+        console.log('✅ Loaded Canada GeoJSON data');
+        
+        // Enhance the GeoJSON features with our data
+        canadaGeoJSON.features = canadaGeoJSON.features.map((feature, idx) => {
+            const provinceName = feature.properties.name;
+            const provinceId = provinceNameToId[provinceName];
+            const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
+            
+            return {
+                ...feature,
+                id: idx,
+                properties: {
+                    ...feature.properties,
+                    id: provinceId,
+                    color: provinceColors[provinceName] || '#6b7280',
+                    gdp2023: provinceData?.gdp2023 || 0,
+                    population: provinceData?.population || 0,
+                }
+            };
+        });
+        
+        // Add source for province polygons
+        map.addSource('province-polygons', {
+            type: 'geojson',
+            data: canadaGeoJSON,
+        });
+        
+        // Add fill layer for provinces
+        map.addLayer({
+            id: 'province-fills',
+            type: 'fill',
+            source: 'province-polygons',
+            paint: {
+                'fill-color': ['get', 'color'],
+                'fill-opacity': [
+                    'case',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    0.5,
+                    0.3
+                ],
+            },
+        });
+        
+        // Add outline layer for provinces
+        map.addLayer({
+            id: 'province-outlines',
+            type: 'line',
+            source: 'province-polygons',
+            paint: {
+                'line-color': ['get', 'color'],
+                'line-width': [
+                    'case',
+                    ['boolean', ['feature-state', 'hover'], false],
+                    4,
+                    2
+                ],
+                'line-opacity': 0.9,
+            },
+        });
+        
+        // Add hover effects for polygons
+        let hoveredPolygonId = null;
+        
+        map.on('mousemove', 'province-fills', (e) => {
+            if (e.features.length > 0) {
+                if (hoveredPolygonId !== null) {
+                    map.setFeatureState(
+                        { source: 'province-polygons', id: hoveredPolygonId },
+                        { hover: false }
+                    );
+                }
+                hoveredPolygonId = e.features[0].id;
+                map.setFeatureState(
+                    { source: 'province-polygons', id: hoveredPolygonId },
+                    { hover: true }
+                );
+                map.getCanvas().style.cursor = 'pointer';
+            }
+        });
+        
+        map.on('mouseleave', 'province-fills', () => {
+            if (hoveredPolygonId !== null) {
+                map.setFeatureState(
+                    { source: 'province-polygons', id: hoveredPolygonId },
+                    { hover: false }
+                );
+            }
+            hoveredPolygonId = null;
+            map.getCanvas().style.cursor = '';
+        });
+        
+        // Add click handler for province polygons
+        map.on('click', 'province-fills', (e) => {
+            if (e.features.length > 0) {
+                const feature = e.features[0];
+                const provinceId = feature.properties.id;
+                const provinceName = feature.properties.name;
+                
+                // Show alert for now (will be replaced with actual functionality later)
+                alert(`You clicked on ${provinceName}!\n\nProvince ID: ${provinceId}\nGDP 2023: $${feature.properties.gdp2023.toLocaleString()}B\nPopulation: ${feature.properties.population.toLocaleString()}`);
+                
+                // Also select the province to show data panel
+                selectProvince(provinceId);
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Failed to load Canada GeoJSON:', error);
+        console.log('Province polygons will not be displayed');
+    }
 }
 
 function selectProvince(provinceId) {
