@@ -1,0 +1,189 @@
+You are a seasoned senior software engineer proficient in javascript and web development. You follow software engineering best practices and write clean, readable and modular code. Recall SOLID principles etc apply where necessary.
+
+Working on project for my data visualization course, I have attached the project spec and the idea or product that my team came up with.
+
+I want you to use d3.js and js and html and css to create our site. The idea is a visualization similar to 
+
+here is the plan to implement:
+
+Clean summary of the plan
+
+Base map & globe feel: Use a WebGL map library (Mapbox GL JS or open-source MapLibre GL JS). Turn on the globe projection for the world view, then smoothly zoom and tilt into Canada down to street level. Keep the experience “2.5D” (tilt, terrain, shadows) rather than full 3D globe engines to stay lightweight.
+
+Street-level imagery: For the “guessing” scene, drop users into Google Street View (easiest, widest coverage) or Mapillary (free/crowdsourced). You’ll show Street View for a curated set of major Canadian cities only.
+
+Interaction model: World (globe) → Canada extent → pick a province/city → enter Street View (for selected cities) → reveal panel(s) with D3 charts about that city (income, employment, demographics).
+
+D3 overlays: Don’t paint charts directly on the map canvas. Instead, render D3 charts in HTML overlays / docked panels that sync to the selected city. Use the map only for navigation/selection; keep charts in UI panels for clarity and performance.
+
+Scope control: Canada only; city list curated (Toronto, Vancouver, Montréal, Calgary, Edmonton, Ottawa–Gatineau, etc.). Street View only for those cities. Charts use your cleaned CMA-level tables; drill-downs can come later.
+
+Library recommendations (pick one stack and stick to it)
+
+A. Zero-cost/open stack (recommended for student projects)
+
+MapLibre GL JS (open-source Mapbox GL): globe projection, tilt, smooth camera, vector tiles.
+
+Tiles/style: Free styles from MapTiler/OpenMapTiles (education tier) or other OSM providers.
+
+Street-level: Mapillary JS (free; OAuth token) for panoramic imagery where available.
+
+Charts: D3 v7+ in HTML panels (floating or side drawer).
+
+Optional layers: deck.gl (optional) if you want performant point clouds/heatmaps later.
+
+B. “Batteries included” stack (fastest to street view)
+
+Google Maps JavaScript API (Vector basemap with tilt + Street View built-in).
+
+Charts: D3 in HTML panels.
+
+Notes: Requires API key + quota. You won’t get a true “globe” but you can fake it with low-zoom camera, tilt, and fog-like styling.
+
+C. Heavier 3D globe (usually overkill here)
+
+CesiumJS (full 3D globe) + custom Street View integration (harder). Only choose if you absolutely want 3D terrain everywhere. For your scope, this is likely too heavy.
+
+My pick: MapLibre GL JS + Mapillary JS + D3 (A). If Street View coverage gaps or auth hurdles are a worry, pick Google Maps JS (B).
+
+How to implement the globe → street zoom and add D3 panels
+Step 1) Project setup
+
+Create a simple app scaffold (Vite + Vanilla TS or React—either is fine).
+
+Install dependencies:
+
+A: maplibre-gl, optional @maptiler/sdk (style hosting), mapillary-js, d3
+
+B: load Google Maps JS via script tag with your key; install d3
+
+Step 2) Base map & camera
+
+MapLibre GL JS:
+
+Initialize with projection: 'globe' (for world feel).
+
+Add terrain with a DEM source (MapTiler Terrain) to get subtle relief when tilted.
+
+Use map.easeTo() with { zoom, pitch, bearing, center, duration } to animate:
+
+World (zoom ~1–2) → Canada bounds (fitBounds) → province → city (zoom ~12–14) → street (~16–18).
+
+Add light/fog for “Earth” feel (map.setFog({...})).
+
+Optional: Add a Canada mask/bounds so panning snaps back and the user can’t wander off.
+
+Step 3) Clickable Canada & city entry points
+
+Add a vector source for provinces (Natural Earth / OSM admin polygons) and style a hoverable fill layer. On click of a province, fit bounds to it.
+
+Add major city markers (GeoJSON with city id, name, coordinates, and boolean hasStreetView).
+
+On marker click:
+
+Update app state: selectedCity.
+
+Zoom/tilt to the city’s center (e.g., zoom 13–14).
+
+If hasStreetView, reveal “Enter Street View” button.
+
+Step 4) Street-level imagery
+
+Mapillary JS (Stack A):
+
+Use the Mapillary API to find the closest image to the city center (or to a curated list of pano IDs you pre-picked for reliability).
+
+Render the Mapillary viewer in a fullscreen overlay (a div on top of the map).
+
+Provide controls to exit back to the map.
+
+Google Street View (Stack B):
+
+Instantiate new google.maps.StreetViewPanorama(container, { position, pov }).
+
+Toggle the map’s setStreetView(panorama) and back.
+
+Tip: Pre-curate a single pano per city to make the demo snappy and consistent.
+
+Step 5) D3 visualizations as panels (not on the map canvas)
+
+Create a side panel (right dock) with tabs/cards for indicators (Income, Unemployment, Age, Tenure, etc.).
+
+When selectedCity changes:
+
+Fetch/lookup that city’s row from your CMA summary table.
+
+Render D3 charts (e.g., small bar chart for income/tenure; dot for unemployment vs income).
+
+Keep charts responsive: let them resize with the panel width; update on tab change.
+
+Provide plain-language labels and sources, aligned with your spec (units, year notes).
+
+Step 6) State & routing
+
+Minimal global state: { selectedProvince, selectedCity, streetViewOpen }.
+
+If using React: Context or lightweight state (Zustand) is plenty.
+
+Add URL query params like ?city=Toronto&view=street so you can deep-link demos.
+
+Step 7) Performance & polish
+
+Defer loading Street View libraries until the user clicks a city with street view.
+
+Use marker clustering only if you expand beyond a handful of cities.
+
+Limit shadows/terrain to moderate values—too much pitch can be disorienting.
+
+Keyboard shortcuts: Esc to exit Street View; H to toggle help.
+
+Step 8) Data wiring for D3
+
+Load your cleaned CMA summary CSV at app start, cache it in memory.
+
+Provide a tiny data access layer: getCityMetrics(cityId).
+
+Normalize city names to CMAs in your file (e.g., Toronto = “Toronto, CMA”).
+
+Step 9) Visual design & UX guardrails
+
+On first load, show a tiny onboarding tooltip: “Click a province → pick a city → Enter Street View. Charts appear here.”
+
+Keep the color system consistent between charts and map badges.
+
+Reserve the map for navigation; avoid drawing chart marks over the map unless it’s a simple point/label.
+
+Step 10) Testing the path (demo flow)
+
+Start at globe view with “Canada” label blinking (subtle).
+
+Click Canada / auto zoom to Canada extent.
+
+Click Toronto marker → “Enter Street View” → show pano.
+
+Open charts tab: unemployment vs income; then demographics donut.
+
+Exit Street View → pick Calgary → repeat (contrast city profiles).
+
+Concrete choices (copy-paste checklist)
+
+If you want open-source & no quotas
+
+Basemap: MapLibre GL JS
+
+Tiles: MapTiler / OpenMapTiles
+
+Globe feel: projection: 'globe', fog, terrain
+
+Street view: Mapillary JS (pre-curated pano IDs)
+
+Charts: D3 in a right-hand panel
+
+If you want the simplest Street View
+
+Basemap + Street View: Google Maps JS API
+
+Charts: D3 in a right-hand panel
+
+Accept that the globe is “faked” via zoom/tilt rather than a true sphere
+

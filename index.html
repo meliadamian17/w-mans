@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canada Data Explorer - Demographics & Urban Insights</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.css">
+</head>
+<body>
+    <div id="app">
+        <div id="map-container">
+            <div id="map"></div>
+            
+            <div class="map-overlay top-left">
+                <div class="logo">
+                    <h1>🍁 Canada Explorer</h1>
+                    <p class="subtitle">Explore demographics & urban data</p>
+                </div>
+            </div>
+
+            <div id="onboarding-tooltip" class="onboarding-tooltip">
+                <p><strong>👋 Welcome!</strong> Click a city marker to explore data</p>
+                <button id="dismiss-tooltip" class="btn-small">Got it</button>
+            </div>
+
+            <div class="map-overlay top-right">
+                <div class="controls-group">
+                    <button id="btn-reset-view" class="btn-control" title="Reset to global view">
+                        🌍 Global View
+                    </button>
+                    <button id="btn-canada-view" class="btn-control" title="Zoom to Canada">
+                        🇨🇦 Canada
+                    </button>
+                    <button id="btn-toggle-legend" class="btn-control" title="Toggle legend">
+                        📊 Legend
+                    </button>
+                </div>
+            </div>
+
+            <div id="legend-panel" class="legend-panel hidden">
+                <h3>Map Elements</h3>
+                <div class="legend-item">
+                    <span class="legend-marker"></span>
+                    <span>Major Cities</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker street-view"></span>
+                    <span>Cities with Street View</span>
+                </div>
+            </div>
+
+            <div id="city-info-panel" class="info-panel top-left hidden">
+                <div class="panel-header">
+                    <h3 id="city-name">Select a city</h3>
+                    <button id="btn-close-city-panel" class="btn-close">&times;</button>
+                </div>
+                <div class="panel-content">
+                    <p id="city-province"></p>
+                    <p id="city-coordinates"></p>
+                    <button id="btn-street-view-city-panel" class="btn-primary hidden">
+                        📷 Enter Street View
+                    </button>
+                </div>
+            </div>
+
+            <div id="loading-indicator" class="loading-indicator hidden">
+                <div class="spinner"></div>
+                <p>Loading data...</p>
+            </div>
+        </div>
+
+        <aside id="data-panel" class="data-panel hidden">
+            <div class="panel-header">
+                <h2 id="panel-city-title">City Data</h2>
+                <button id="btn-close-data-panel" class="btn-close">&times;</button>
+            </div>
+
+            <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color);">
+                <button id="btn-street-view-right-panel" class="btn-primary" style="width: 100%;">
+                    📷 Enter Street View
+                </button>
+            </div>
+
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="overview">📈 Overview</button>
+                <button class="tab-btn" data-tab="income">💰 Income</button>
+                <button class="tab-btn" data-tab="employment">💼 Employment</button>
+                <button class="tab-btn" data-tab="demographics">👥 Demographics</button>
+            </div>
+
+            <div class="tab-content">
+                <div id="tab-overview" class="tab-pane active">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <span class="stat-label">Population</span>
+                            <span class="stat-value" id="stat-population">—</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Median Income</span>
+                            <span class="stat-value" id="stat-median-income">—</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Unemployment Rate</span>
+                            <span class="stat-value" id="stat-unemployment">—</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Avg. Age</span>
+                            <span class="stat-value" id="stat-age">—</span>
+                        </div>
+                    </div>
+                    <div id="chart-overview" class="chart-container"></div>
+                </div>
+
+                <div id="tab-income" class="tab-pane">
+                    <h4>Household Income Distribution</h4>
+                    <div id="chart-income" class="chart-container"></div>
+                    <p class="chart-note">Based on Census Metropolitan Area data</p>
+                </div>
+
+                <div id="tab-employment" class="tab-pane">
+                    <h4>Employment Metrics</h4>
+                    <div id="chart-employment" class="chart-container"></div>
+                    <p class="chart-note">Labor force participation and unemployment rates</p>
+                </div>
+
+                <div id="tab-demographics" class="tab-pane">
+                    <h4>Population Demographics</h4>
+                    <div id="chart-demographics" class="chart-container"></div>
+                    <p class="chart-note">Age distribution and diversity metrics</p>
+                </div>
+            </div>
+
+            <div class="panel-footer">
+                <p class="data-source">Data source: Statistics Canada</p>
+            </div>
+        </aside>
+
+        <div id="street-view-container" class="street-view-overlay hidden">
+            <button id="btn-exit-street-view" class="btn-exit-street-view">
+                ✕ Exit Street View
+            </button>
+            <div id="street-view-canvas"></div>
+            <div class="street-view-controls">
+                <p id="street-view-location"></p>
+            </div>
+        </div>
+
+        <button id="btn-street-view" class="btn-street-view-floating hidden">
+            📷 Street View
+        </button>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <script src="https://unpkg.com/d3@7"></script>
+    <script src="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
