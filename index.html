@@ -21,7 +21,7 @@
             </div>
 
             <div id="onboarding-tooltip" class="onboarding-tooltip">
-                <p><strong>👋 Welcome!</strong> Click a province marker to explore GDP data</p>
+                <p><strong>👋 Welcome!</strong> Click any province to explore GDP data</p>
                 <button id="dismiss-tooltip" class="btn-small">Got it</button>
             </div>
 
@@ -40,46 +40,31 @@
             </div>
 
             <div id="legend-panel" class="legend-panel hidden">
-                <h3>GDP Marker Legend</h3>
-                <div class="legend-gradient">
-                    <div class="gradient-bar"></div>
-                    <div class="gradient-labels">
-                        <span>$41B</span>
-                        <span>$74B</span>
-                    </div>
-                </div>
+                <h3>GDP Color Legend</h3>
                 <div class="legend-items">
                     <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #dc2626;"></span>
-                        <span>Very High ($50B+)</span>
+                        <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                        <span>Very High ($300B+)</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #f97316;"></span>
-                        <span>High ($30B-$50B)</span>
+                        <span class="legend-marker" style="background-color: #0070f3;"></span>
+                        <span>High ($100B-$300B)</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #eab308;"></span>
-                        <span>Moderate ($20B-$30B)</span>
+                        <span class="legend-marker" style="background-color: #7928ca;"></span>
+                        <span>Moderate ($50B-$100B)</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #84cc16;"></span>
-                        <span>Good ($10B-$20B)</span>
+                        <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                        <span>Low ($10B-$50B)</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #06b6d4;"></span>
-                        <span>Fair ($5B-$10B)</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #3b82f6;"></span>
-                        <span>Low ($1B-$5B)</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-marker" style="background-color: #1e3a8a;"></span>
-                        <span>Very Low (<$1B)</span>
+                        <span class="legend-marker" style="background-color: #ff0080;"></span>
+                        <span>Very Low (<$10B)</span>
                     </div>
                 </div>
                 <div class="legend-note">
-                    <small>Marker size also indicates GDP magnitude</small>
+                    <small>Province colors based on GDP</small>
                 </div>
             </div>
 
@@ -180,6 +165,6 @@
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/d3@7"></script>
     <script src="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.js"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="./js/app.js"></script>
 </body>
 </html>
