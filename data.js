@@ -1,336 +1,294 @@
-export const CANADIAN_CITIES = [
+// Province-level GDP data (2021-2023)
+export const CANADIAN_PROVINCES_GDP = [
     {
-        id: 'toronto',
-        name: 'Toronto',
-        province: 'Ontario',
-        lat: 43.6629,
-        lng: -79.3957,
-        cma: 'Toronto CMA',
-        hasStreetView: true,
-        mapillaryId: null,
+        id: 'ab',
+        name: 'Alberta',
+        center: [-115.2723, 53.9333],
+        bounds: [
+            [-120.0, 49.0], [-110.0, 49.0], [-110.0, 60.0], [-120.0, 60.0], [-120.0, 49.0]
+        ],
+        population: 4_262_635,
+        gdp2021: 64910.0,
+        gdp2022: 71555.5,
+        gdp2023: 74431.5,
+        growth2022_2023: 4.0,
+        gdpPerCapita2023: 17468.0,
     },
     {
-        id: 'vancouver',
-        name: 'Vancouver',
-        province: 'British Columbia',
-        lat: 49.2827,
-        lng: -123.1207,
-        cma: 'Vancouver CMA',
-        hasStreetView: true,
+        id: 'yt',
+        name: 'Yukon',
+        center: [-135.0, 64.2008],
+        bounds: [
+            [-141.0, 60.0], [-124.5, 60.0], [-124.5, 69.65], [-141.0, 69.65], [-141.0, 60.0]
+        ],
+        population: 40_232,
+        gdp2021: 30233.8,
+        gdp2022: 32984.3,
+        gdp2023: 34291.6,
+        growth2022_2023: 4.0,
+        gdpPerCapita2023: 852.4,
     },
     {
-        id: 'montreal',
-        name: 'Montréal',
-        province: 'Quebec',
-        lat: 45.5017,
-        lng: -73.5673,
-        cma: 'Montréal CMA',
-        hasStreetView: true,
+        id: 'pe',
+        name: 'Prince Edward Island',
+        center: [-63.0, 46.5],
+        bounds: [
+            [-64.5, 45.9], [-61.8, 45.9], [-61.8, 47.1], [-64.5, 47.1], [-64.5, 45.9]
+        ],
+        population: 154_331,
+        gdp2021: 22503.0,
+        gdp2022: 24605.5,
+        gdp2023: 25911.8,
+        growth2022_2023: 5.3,
+        gdpPerCapita2023: 167.9,
     },
     {
-        id: 'calgary',
-        name: 'Calgary',
-        province: 'Alberta',
-        lat: 51.0504,
-        lng: -114.0853,
-        cma: 'Calgary CMA',
-        hasStreetView: true,
+        id: 'nl',
+        name: 'Newfoundland & Labrador',
+        center: [-56.1304, 53.1355],
+        bounds: [
+            [-67.0, 47.0], [-52.0, 47.0], [-52.0, 61.0], [-67.0, 61.0], [-67.0, 47.0]
+        ],
+        population: 510_550,
+        gdp2021: 16986.1,
+        gdp2022: 18226.3,
+        gdp2023: 19099.8,
+        growth2022_2023: 4.8,
+        gdpPerCapita2023: 37.4,
     },
     {
-        id: 'edmonton',
-        name: 'Edmonton',
-        province: 'Alberta',
-        lat: 53.5461,
-        lng: -113.4938,
-        cma: 'Edmonton CMA',
-        hasStreetView: true,
+        id: 'ns',
+        name: 'Nova Scotia',
+        center: [-62.6181, 45.3631],
+        bounds: [
+            [-66.0, 43.4], [-59.7, 43.4], [-59.7, 47.0], [-66.0, 47.0], [-66.0, 43.4]
+        ],
+        population: 969_383,
+        gdp2021: 2310.5,
+        gdp2022: 2474.4,
+        gdp2023: 2567.5,
+        growth2022_2023: 3.8,
+        gdpPerCapita2023: 2.6,
     },
     {
-        id: 'ottawa',
-        name: 'Ottawa–Gatineau',
-        province: 'Ontario',
-        lat: 45.4215,
-        lng: -75.6972,
-        cma: 'Ottawa–Gatineau CMA',
-        hasStreetView: true,
+        id: 'on',
+        name: 'Ontario',
+        center: [-85.3232, 51.3826],
+        bounds: [
+            [-95.0, 41.7], [-74.3, 41.7], [-74.3, 56.9], [-95.0, 56.9], [-95.0, 41.7]
+        ],
+        population: 14_223_942,
+        gdp2021: 2034.9,
+        gdp2022: 2276.1,
+        gdp2023: 2352.2,
+        growth2022_2023: 3.3,
+        gdpPerCapita2023: 0.2,
     },
     {
-        id: 'winnipeg',
-        name: 'Winnipeg',
-        province: 'Manitoba',
-        lat: 49.8951,
-        lng: -97.1384,
-        cma: 'Winnipeg CMA',
-        hasStreetView: true,
+        id: 'nt',
+        name: 'Northwest Territories',
+        center: [-117.3560, 64.8255],
+        bounds: [
+            [-141.0, 60.0], [-102.0, 60.0], [-102.0, 84.0], [-141.0, 84.0], [-141.0, 60.0]
+        ],
+        population: 41_070,
+        gdp2021: 2015.0,
+        gdp2022: 2083.6,
+        gdp2023: 2147.3,
+        growth2022_2023: 3.1,
+        gdpPerCapita2023: 52.3,
     },
     {
-        id: 'quebec',
-        name: 'Québec',
-        province: 'Quebec',
-        lat: 46.8139,
-        lng: -71.2080,
-        cma: 'Québec CMA',
-        hasStreetView: false,
+        id: 'nb',
+        name: 'New Brunswick',
+        center: [-66.4619, 46.5653],
+        bounds: [
+            [-69.0, 44.8], [-64.0, 44.8], [-64.0, 48.0], [-69.0, 48.0], [-69.0, 44.8]
+        ],
+        population: 775_610,
+        gdp2021: 1266.4,
+        gdp2022: 1365.9,
+        gdp2023: 1405.1,
+        growth2022_2023: 2.9,
+        gdpPerCapita2023: 1.8,
     },
     {
-        id: 'hamilton',
-        name: 'Hamilton',
-        province: 'Ontario',
-        lat: 43.2557,
-        lng: -79.8711,
-        cma: 'Toronto CMA',
-        hasStreetView: false,
+        id: 'qc',
+        name: 'Quebec',
+        center: [-73.5673, 52.9399],
+        bounds: [
+            [-79.0, 45.0], [-57.0, 45.0], [-57.0, 62.5], [-79.0, 62.5], [-79.0, 45.0]
+        ],
+        population: 8_501_833,
+        gdp2021: 1114.7,
+        gdp2022: 1122.1,
+        gdp2023: 1134.6,
+        growth2022_2023: 1.1,
+        gdpPerCapita2023: 0.1,
     },
     {
-        id: 'kitchener',
-        name: 'Kitchener–Waterloo',
-        province: 'Ontario',
-        lat: 43.4516,
-        lng: -80.4925,
-        cma: 'Kitchener–Waterloo CMA',
-        hasStreetView: false,
+        id: 'bc',
+        name: 'British Columbia',
+        center: [-122.3045, 53.7267],
+        bounds: [
+            [-139.0, 49.0], [-114.0, 49.0], [-114.0, 60.0], [-139.0, 60.0], [-139.0, 49.0]
+        ],
+        population: 5_000_879,
+        gdp2021: 242.7,
+        gdp2022: 263.7,
+        gdp2023: 275.6,
+        growth2022_2023: 4.5,
+        gdpPerCapita2023: 0.1,
+    },
+    {
+        id: 'nu',
+        name: 'Nunavut',
+        center: [-94.8369, 70.2998],
+        bounds: [
+            [-141.0, 60.0], [-59.75, 60.0], [-59.75, 83.1], [-141.0, 83.1], [-141.0, 60.0]
+        ],
+        population: 36_858,
+        gdp2021: 93.2,
+        gdp2022: 100.7,
+        gdp2023: 103.7,
+        growth2022_2023: 3.0,
+        gdpPerCapita2023: 2.8,
+    },
+    {
+        id: 'mb',
+        name: 'Manitoba',
+        center: [-98.8139, 56.1304],
+        bounds: [
+            [-102.0, 49.0], [-95.0, 49.0], [-95.0, 60.0], [-102.0, 60.0], [-102.0, 49.0]
+        ],
+        population: 1_342_153,
+        gdp2021: 105.8,
+        gdp2022: 87.5,
+        gdp2023: 92.1,
+        growth2022_2023: 5.3,
+        gdpPerCapita2023: 0.1,
+    },
+    {
+        id: 'sk',
+        name: 'Saskatchewan',
+        center: [-106.3468, 56.1304],
+        bounds: [
+            [-110.45, 49.0], [-102.0, 49.0], [-102.0, 60.0], [-110.45, 60.0], [-110.45, 49.0]
+        ],
+        population: 1_132_505,
+        gdp2021: 40.3,
+        gdp2022: 38.7,
+        gdp2023: 41.5,
+        growth2022_2023: 7.2, // Calculated from the data
+        gdpPerCapita2023: 0.0,
     },
 ];
 
-export const CANADIAN_PROVINCES = [
-    { id: 'ab', name: 'Alberta', center: [-115.2723, 53.9333], bounds: [[-120.0, 49.0], [-110.0, 60.0]] },
-    { id: 'bc', name: 'British Columbia', center: [-122.3045, 53.7267], bounds: [[-139.0, 49.0], [-114.0, 60.0]] },
-    { id: 'mb', name: 'Manitoba', center: [-98.8139, 56.1304], bounds: [[-102.0, 49.0], [-95.0, 60.0]] },
-    { id: 'nb', name: 'New Brunswick', center: [-66.4619, 46.5653], bounds: [[-69.0, 44.8], [-64.0, 48.0]] },
-    { id: 'nl', name: 'Newfoundland & Labrador', center: [-56.1304, 53.1355], bounds: [[-67.0, 47.0], [-52.0, 61.0]] },
-    { id: 'ns', name: 'Nova Scotia', center: [-62.6181, 45.3631], bounds: [[-66.0, 43.4], [-59.7, 47.0]] },
-    { id: 'nt', name: 'Northwest Territories', center: [-117.3560, 64.8255], bounds: [[-141.0, 60.0], [-102.0, 84.0]] },
-    { id: 'nu', name: 'Nunavut', center: [-94.8369, 70.2998], bounds: [[-141.0, 60.0], [-59.75, 83.1]] },
-    { id: 'on', name: 'Ontario', center: [-85.3232, 51.3826], bounds: [[-95.0, 41.7], [-74.3, 56.9]] },
-    { id: 'pe', name: 'Prince Edward Island', center: [-63.0, 46.5], bounds: [[-64.5, 45.9], [-61.8, 47.1]] },
-    { id: 'qc', name: 'Quebec', center: [-73.5673, 52.9399], bounds: [[-79.0, 45.0], [-57.0, 62.5]] },
-    { id: 'sk', name: 'Saskatchewan', center: [-106.3468, 56.1304], bounds: [[-110.45, 49.0], [-102.0, 60.0]] },
-    { id: 'yt', name: 'Yukon', center: [-135.0, 64.2008], bounds: [[-141.0, 60.0], [-124.5, 69.65]] },
-];
-
-export const CITY_METRICS = {
-    'toronto': {
-        name: 'Toronto',
-        cma: 'Toronto CMA',
-        population: 6_429_000,
-        medianIncome: 68_500,
-        unemploymentRate: 5.2,
-        avgAge: 38.9,
-        laborForceParticipation: 63.8,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 12 },
-            { range: '$30k–$50k', percentage: 18 },
-            { range: '$50k–$75k', percentage: 22 },
-            { range: '$75k–$100k', percentage: 20 },
-            { range: '$100k+', percentage: 28 },
+// GDP metrics for charts
+export const PROVINCE_GDP_METRICS = {
+    'ab': {
+        name: 'Alberta',
+        gdp2023: 74431.5,
+        gdp2022: 71555.5,
+        gdp2021: 64910.0,
+        growth2022_2023: 4.0,
+        gdpPerCapita2023: 17468.0,
+        trend: 'growing',
+        recentTrend: [
+            { year: 2021, gdp: 64910.0 },
+            { year: 2022, gdp: 71555.5 },
+            { year: 2023, gdp: 74431.5 }
         ],
-        ageDistribution: [
-            { range: '0–14', percentage: 15 },
-            { range: '15–24', percentage: 13 },
-            { range: '25–44', percentage: 28 },
-            { range: '45–64', percentage: 28 },
-            { range: '65+', percentage: 16 },
-        ],
-        employmentBySector: [
-            { sector: 'Services', percentage: 80 },
-            { sector: 'Manufacturing', percentage: 10 },
-            { sector: 'Construction', percentage: 7 },
-            { sector: 'Other', percentage: 3 },
-        ],
+        comparisonData: [
+            { province: 'Alberta', gdp: 74431.5 },
+            { province: 'Yukon', gdp: 34291.6 },
+            { province: 'Prince Edward Island', gdp: 25911.8 },
+            { province: 'Newfoundland & Labrador', gdp: 19099.8 },
+            { province: 'Nova Scotia', gdp: 2567.5 },
+            { province: 'Ontario', gdp: 2352.2 }
+        ]
     },
-    'vancouver': {
-        name: 'Vancouver',
-        cma: 'Vancouver CMA',
-        population: 2_642_000,
-        medianIncome: 72_800,
-        unemploymentRate: 4.8,
-        avgAge: 38.2,
-        laborForceParticipation: 65.1,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 10 },
-            { range: '$30k–$50k', percentage: 16 },
-            { range: '$50k–$75k', percentage: 20 },
-            { range: '$75k–$100k', percentage: 22 },
-            { range: '$100k+', percentage: 32 },
+    'yt': {
+        name: 'Yukon',
+        gdp2023: 34291.6,
+        gdp2022: 32984.3,
+        gdp2021: 30233.8,
+        growth2022_2023: 4.0,
+        gdpPerCapita2023: 852.4,
+        trend: 'growing',
+        recentTrend: [
+            { year: 2021, gdp: 30233.8 },
+            { year: 2022, gdp: 32984.3 },
+            { year: 2023, gdp: 34291.6 }
         ],
-        ageDistribution: [
-            { range: '0–14', percentage: 14 },
-            { range: '15–24', percentage: 12 },
-            { range: '25–44', percentage: 30 },
-            { range: '45–64', percentage: 27 },
-            { range: '65+', percentage: 17 },
-        ],
-        employmentBySector: [
-            { sector: 'Services', percentage: 82 },
-            { sector: 'Manufacturing', percentage: 8 },
-            { sector: 'Construction', percentage: 7 },
-            { sector: 'Other', percentage: 3 },
-        ],
+        comparisonData: [
+            { province: 'Alberta', gdp: 74431.5 },
+            { province: 'Yukon', gdp: 34291.6 },
+            { province: 'Prince Edward Island', gdp: 25911.8 },
+            { province: 'Newfoundland & Labrador', gdp: 19099.8 },
+            { province: 'Nova Scotia', gdp: 2567.5 },
+            { province: 'Ontario', gdp: 2352.2 }
+        ]
     },
-    'montreal': {
-        name: 'Montréal',
-        cma: 'Montréal CMA',
-        population: 4_291_000,
-        medianIncome: 62_200,
-        unemploymentRate: 5.9,
-        avgAge: 39.1,
-        laborForceParticipation: 61.2,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 15 },
-            { range: '$30k–$50k', percentage: 21 },
-            { range: '$50k–$75k', percentage: 23 },
-            { range: '$75k–$100k', percentage: 19 },
-            { range: '$100k+', percentage: 22 },
+    'pe': {
+        name: 'Prince Edward Island',
+        gdp2023: 25911.8,
+        gdp2022: 24605.5,
+        gdp2021: 22503.0,
+        growth2022_2023: 5.3,
+        gdpPerCapita2023: 167.9,
+        trend: 'growing',
+        recentTrend: [
+            { year: 2021, gdp: 22503.0 },
+            { year: 2022, gdp: 24605.5 },
+            { year: 2023, gdp: 25911.8 }
         ],
-        ageDistribution: [
-            { range: '0–14', percentage: 15 },
-            { range: '15–24', percentage: 14 },
-            { range: '25–44', percentage: 27 },
-            { range: '45–64', percentage: 27 },
-            { range: '65+', percentage: 17 },
-        ],
-        employmentBySector: [
-            { sector: 'Services', percentage: 81 },
-            { sector: 'Manufacturing', percentage: 10 },
-            { sector: 'Construction', percentage: 6 },
-            { sector: 'Other', percentage: 3 },
-        ],
+        comparisonData: [
+            { province: 'Alberta', gdp: 74431.5 },
+            { province: 'Yukon', gdp: 34291.6 },
+            { province: 'Prince Edward Island', gdp: 25911.8 },
+            { province: 'Newfoundland & Labrador', gdp: 19099.8 },
+            { province: 'Nova Scotia', gdp: 2567.5 },
+            { province: 'Ontario', gdp: 2352.2 }
+        ]
     },
-    'calgary': {
-        name: 'Calgary',
-        cma: 'Calgary CMA',
-        population: 1_616_000,
-        medianIncome: 75_300,
-        unemploymentRate: 4.2,
-        avgAge: 37.1,
-        laborForceParticipation: 67.3,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 9 },
-            { range: '$30k–$50k', percentage: 15 },
-            { range: '$50k–$75k', percentage: 19 },
-            { range: '$75k–$100k', percentage: 23 },
-            { range: '$100k+', percentage: 34 },
+    'nl': {
+        name: 'Newfoundland & Labrador',
+        gdp2023: 19099.8,
+        gdp2022: 18226.3,
+        gdp2021: 16986.1,
+        growth2022_2023: 4.8,
+        gdpPerCapita2023: 37.4,
+        trend: 'growing',
+        recentTrend: [
+            { year: 2021, gdp: 16986.1 },
+            { year: 2022, gdp: 18226.3 },
+            { year: 2023, gdp: 19099.8 }
         ],
-        ageDistribution: [
-            { range: '0–14', percentage: 17 },
-            { range: '15–24', percentage: 12 },
-            { range: '25–44', percentage: 31 },
-            { range: '45–64', percentage: 26 },
-            { range: '65+', percentage: 14 },
-        ],
-        employmentBySector: [
-            { sector: 'Services', percentage: 75 },
-            { sector: 'Manufacturing', percentage: 7 },
-            { sector: 'Construction', percentage: 12 },
-            { sector: 'Energy & Mining', percentage: 6 },
-        ],
-    },
-    'edmonton': {
-        name: 'Edmonton',
-        cma: 'Edmonton CMA',
-        population: 1_495_000,
-        medianIncome: 71_500,
-        unemploymentRate: 4.6,
-        avgAge: 36.8,
-        laborForceParticipation: 66.8,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 10 },
-            { range: '$30k–$50k', percentage: 16 },
-            { range: '$50k–$75k', percentage: 20 },
-            { range: '$75k–$100k', percentage: 22 },
-            { range: '$100k+', percentage: 32 },
-        ],
-        ageDistribution: [
-            { range: '0–14', percentage: 18 },
-            { range: '15–24', percentage: 13 },
-            { range: '25–44', percentage: 30 },
-            { range: '45–64', percentage: 25 },
-            { range: '65+', percentage: 14 },
-        ],
-        employmentBySector: [
-            { sector: 'Services', percentage: 76 },
-            { sector: 'Manufacturing', percentage: 8 },
-            { sector: 'Construction', percentage: 11 },
-            { sector: 'Energy & Mining', percentage: 5 },
-        ],
-    },
-    'ottawa': {
-        name: 'Ottawa–Gatineau',
-        cma: 'Ottawa–Gatineau CMA',
-        population: 1_402_000,
-        medianIncome: 79_200,
-        unemploymentRate: 3.9,
-        avgAge: 38.5,
-        laborForceParticipation: 68.2,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 8 },
-            { range: '$30k–$50k', percentage: 14 },
-            { range: '$50k–$75k', percentage: 18 },
-            { range: '$75k–$100k', percentage: 21 },
-            { range: '$100k+', percentage: 39 },
-        ],
-        ageDistribution: [
-            { range: '0–14', percentage: 16 },
-            { range: '15–24', percentage: 11 },
-            { range: '25–44', percentage: 29 },
-            { range: '45–64', percentage: 28 },
-            { range: '65+', percentage: 16 },
-        ],
-        employmentBySector: [
-            { sector: 'Government & Services', percentage: 85 },
-            { sector: 'Manufacturing', percentage: 6 },
-            { sector: 'Construction', percentage: 6 },
-            { sector: 'Other', percentage: 3 },
-        ],
-    },
-    'winnipeg': {
-        name: 'Winnipeg',
-        cma: 'Winnipeg CMA',
-        population: 898_000,
-        medianIncome: 65_300,
-        unemploymentRate: 5.1,
-        avgAge: 38.2,
-        laborForceParticipation: 64.5,
-        incomeDistribution: [
-            { range: 'Under $30k', percentage: 13 },
-            { range: '$30k–$50k', percentage: 20 },
-            { range: '$50k–$75k', percentage: 21 },
-            { range: '$75k–$100k', percentage: 20 },
-            { range: '$100k+', percentage: 26 },
-        ],
-        ageDistribution: [
-            { range: '0–14', percentage: 16 },
-            { range: '15–24', percentage: 13 },
-            { range: '25–44', percentage: 27 },
-            { range: '45–64', percentage: 27 },
-            { range: '65+', percentage: 17 },
-        ],
-        employmentBySector: [
-            { sector: 'Services', percentage: 78 },
-            { sector: 'Manufacturing', percentage: 12 },
-            { sector: 'Construction', percentage: 7 },
-            { sector: 'Other', percentage: 3 },
-        ],
-    },
+        comparisonData: [
+            { province: 'Alberta', gdp: 74431.5 },
+            { province: 'Yukon', gdp: 34291.6 },
+            { province: 'Prince Edward Island', gdp: 25911.8 },
+            { province: 'Newfoundland & Labrador', gdp: 19099.8 },
+            { province: 'Nova Scotia', gdp: 2567.5 },
+            { province: 'Ontario', gdp: 2352.2 }
+        ]
+    }
 };
 
-export function getCityMetrics(cityId) {
-    const city = CANADIAN_CITIES.find(c => c.id === cityId);
-    if (!city) return {};
+export function getProvinceMetrics(provinceId) {
+    const province = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
+    if (!province) return {};
     
-    return CITY_METRICS[cityId] || {};
-}
-
-export function getCityById(cityId) {
-    return CANADIAN_CITIES.find(c => c.id === cityId) || null;
+    return PROVINCE_GDP_METRICS[provinceId] || {};
 }
 
 export function getProvinceById(provinceId) {
-    return CANADIAN_PROVINCES.find(p => p.id === provinceId) || null;
+    return CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId) || null;
 }
 
-export function getCitiesByProvince(provinceName) {
-    return CANADIAN_CITIES.filter(city => city.province === provinceName);
+export function getAllProvinces() {
+    return CANADIAN_PROVINCES_GDP;
 }
 
 export function formatCurrency(value) {
@@ -338,6 +296,7 @@ export function formatCurrency(value) {
         style: 'currency',
         currency: 'CAD',
         minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
     }).format(value);
 }
 
@@ -347,4 +306,21 @@ export function formatPercentage(value, decimals = 1) {
 
 export function formatNumber(value) {
     return new Intl.NumberFormat('en-CA').format(value);
+}
+
+export function getGDPColor(gdp) {
+    // Color scale based on GDP contribution
+    if (gdp >= 50000) return '#22c55e';      // Green - Very High GDP
+    if (gdp >= 20000) return '#84cc16';      // Light Green - High GDP  
+    if (gdp >= 10000) return '#eab308';      // Yellow - Moderate GDP
+    if (gdp >= 1000) return '#f97316';      // Orange - Low GDP
+    return '#ef4444';                        // Red - Very Low GDP
+}
+
+export function getGDPStatus(gdp) {
+    if (gdp >= 50000) return 'Very High';
+    if (gdp >= 20000) return 'High';
+    if (gdp >= 10000) return 'Moderate';
+    if (gdp >= 1000) return 'Low';
+    return 'Very Low';
 }

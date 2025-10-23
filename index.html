@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canada Data Explorer - Demographics & Urban Insights</title>
+    <title>Canada GDP Explorer - Provincial Economic Data</title>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.css">
@@ -15,13 +15,13 @@
             
             <div class="map-overlay top-left">
                 <div class="logo">
-                    <h1>🍁 Canada Explorer</h1>
-                    <p class="subtitle">Explore demographics & urban data</p>
+                    <h1>🍁 Canada GDP Explorer</h1>
+                    <p class="subtitle">Provincial GDP data (2021-2023)</p>
                 </div>
             </div>
 
             <div id="onboarding-tooltip" class="onboarding-tooltip">
-                <p><strong>👋 Welcome!</strong> Click a city marker to explore data</p>
+                <p><strong>👋 Welcome!</strong> Click a province marker to explore GDP data</p>
                 <button id="dismiss-tooltip" class="btn-small">Got it</button>
             </div>
 
@@ -40,27 +40,59 @@
             </div>
 
             <div id="legend-panel" class="legend-panel hidden">
-                <h3>Map Elements</h3>
-                <div class="legend-item">
-                    <span class="legend-marker"></span>
-                    <span>Major Cities</span>
+                <h3>GDP Marker Legend</h3>
+                <div class="legend-gradient">
+                    <div class="gradient-bar"></div>
+                    <div class="gradient-labels">
+                        <span>$41B</span>
+                        <span>$74B</span>
+                    </div>
                 </div>
-                <div class="legend-item">
-                    <span class="legend-marker street-view"></span>
-                    <span>Cities with Street View</span>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #dc2626;"></span>
+                        <span>Very High ($50B+)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #f97316;"></span>
+                        <span>High ($30B-$50B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #eab308;"></span>
+                        <span>Moderate ($20B-$30B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #84cc16;"></span>
+                        <span>Good ($10B-$20B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #06b6d4;"></span>
+                        <span>Fair ($5B-$10B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #3b82f6;"></span>
+                        <span>Low ($1B-$5B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #1e3a8a;"></span>
+                        <span>Very Low (<$1B)</span>
+                    </div>
+                </div>
+                <div class="legend-note">
+                    <small>Marker size also indicates GDP magnitude</small>
                 </div>
             </div>
 
-            <div id="city-info-panel" class="info-panel top-left hidden">
+            <div id="province-info-panel" class="info-panel top-left hidden">
                 <div class="panel-header">
-                    <h3 id="city-name">Select a city</h3>
-                    <button id="btn-close-city-panel" class="btn-close">&times;</button>
+                    <h3 id="province-name">Select a province</h3>
+                    <button id="btn-close-province-panel" class="btn-close">&times;</button>
                 </div>
                 <div class="panel-content">
-                    <p id="city-province"></p>
-                    <p id="city-coordinates"></p>
-                    <button id="btn-street-view-city-panel" class="btn-primary hidden">
-                        📷 Enter Street View
+                    <p id="province-population"></p>
+                    <p id="province-coordinates"></p>
+                    <button id="btn-street-view-province-panel" class="btn-primary">
+                        🏛️ Provincial View
                     </button>
                 </div>
             </div>
@@ -73,62 +105,55 @@
 
         <aside id="data-panel" class="data-panel hidden">
             <div class="panel-header">
-                <h2 id="panel-city-title">City Data</h2>
+                <h2 id="panel-province-title">Province Data</h2>
                 <button id="btn-close-data-panel" class="btn-close">&times;</button>
             </div>
 
             <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color);">
                 <button id="btn-street-view-right-panel" class="btn-primary" style="width: 100%;">
-                    📷 Enter Street View
+                    🏛️ Provincial View
                 </button>
             </div>
 
             <div class="tabs">
                 <button class="tab-btn active" data-tab="overview">📈 Overview</button>
-                <button class="tab-btn" data-tab="income">💰 Income</button>
-                <button class="tab-btn" data-tab="employment">💼 Employment</button>
-                <button class="tab-btn" data-tab="demographics">👥 Demographics</button>
+                <button class="tab-btn" data-tab="trend">📊 GDP Trend</button>
+                <button class="tab-btn" data-tab="comparison">🔍 Comparison</button>
             </div>
 
             <div class="tab-content">
                 <div id="tab-overview" class="tab-pane active">
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <span class="stat-label">Population</span>
-                            <span class="stat-value" id="stat-population">—</span>
+                            <span class="stat-label">GDP 2023</span>
+                            <span class="stat-value" id="stat-current-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Median Income</span>
-                            <span class="stat-value" id="stat-median-income">—</span>
+                            <span class="stat-label">GDP 2022</span>
+                            <span class="stat-value" id="stat-avg-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Unemployment Rate</span>
-                            <span class="stat-value" id="stat-unemployment">—</span>
+                            <span class="stat-label">GDP 2021</span>
+                            <span class="stat-value" id="stat-peak-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Avg. Age</span>
-                            <span class="stat-value" id="stat-age">—</span>
+                            <span class="stat-label">Growth 2022-23</span>
+                            <span class="stat-value" id="stat-peak-year">—</span>
                         </div>
                     </div>
                     <div id="chart-overview" class="chart-container"></div>
                 </div>
 
-                <div id="tab-income" class="tab-pane">
-                    <h4>Household Income Distribution</h4>
-                    <div id="chart-income" class="chart-container"></div>
-                    <p class="chart-note">Based on Census Metropolitan Area data</p>
+                <div id="tab-trend" class="tab-pane">
+                    <h4>GDP Trend (2021-2023)</h4>
+                    <div id="chart-trend" class="chart-container"></div>
+                    <p class="chart-note">3-year GDP trend</p>
                 </div>
 
-                <div id="tab-employment" class="tab-pane">
-                    <h4>Employment Metrics</h4>
-                    <div id="chart-employment" class="chart-container"></div>
-                    <p class="chart-note">Labor force participation and unemployment rates</p>
-                </div>
-
-                <div id="tab-demographics" class="tab-pane">
-                    <h4>Population Demographics</h4>
-                    <div id="chart-demographics" class="chart-container"></div>
-                    <p class="chart-note">Age distribution and diversity metrics</p>
+                <div id="tab-comparison" class="tab-pane">
+                    <h4>Provincial GDP Comparison</h4>
+                    <div id="chart-comparison" class="chart-container"></div>
+                    <p class="chart-note">GDP by province (2023)</p>
                 </div>
             </div>
 
@@ -148,7 +173,7 @@
         </div>
 
         <button id="btn-street-view" class="btn-street-view-floating hidden">
-            📷 Street View
+            🏛️ Provincial View
         </button>
     </div>
 

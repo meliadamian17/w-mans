@@ -1,16 +1,18 @@
 import {
-    CANADIAN_CITIES,
-    getCityMetrics,
-    getCityById,
+    CANADIAN_PROVINCES_GDP,
+    getProvinceMetrics,
+    getProvinceById,
+    getAllProvinces,
     formatCurrency,
     formatPercentage,
     formatNumber,
+    getGDPColor,
+    getGDPStatus,
 } from './data.js';
 
 const MAPILLARY_ACCESS_TOKEN = 'MLY|25924883943764997|4ac03280f19bbd17e1e57bbef97fb5f2';
 
 const appState = {
-    selectedCity: null,
     selectedProvince: null,
     streetViewOpen: false,
     mapLoaded: false,
@@ -25,15 +27,15 @@ const elements = {
     btnCanadaView: document.getElementById('btn-canada-view'),
     btnToggleLegend: document.getElementById('btn-toggle-legend'),
     btnCloseDataPanel: document.getElementById('btn-close-data-panel'),
-    btnCloseCityPanel: document.getElementById('btn-close-city-panel'),
+    btnCloseProvincePanel: document.getElementById('btn-close-province-panel'),
     btnStreetView: document.getElementById('btn-street-view-right-panel'),
-    btnStreetViewCityPanel: document.getElementById('btn-street-view-city-panel'),
+    btnStreetViewProvincePanel: document.getElementById('btn-street-view-province-panel'),
     btnStreetViewFloating: document.getElementById('btn-street-view-floating'),
     btnExitStreetView: document.getElementById('btn-exit-street-view'),
     btnDismissTooltip: document.getElementById('dismiss-tooltip'),
     
     dataPanel: document.getElementById('data-panel'),
-    cityInfoPanel: document.getElementById('city-info-panel'),
+    provinceInfoPanel: document.getElementById('province-info-panel'),
     legendPanel: document.getElementById('legend-panel'),
     streetViewContainer: document.getElementById('street-view-container'),
     onboardingTooltip: document.getElementById('onboarding-tooltip'),
@@ -42,21 +44,21 @@ const elements = {
     tabButtons: document.querySelectorAll('.tab-btn'),
     tabPanes: document.querySelectorAll('.tab-pane'),
     
-    cityName: document.getElementById('city-name'),
-    cityProvince: document.getElementById('city-province'),
-    cityCoordinates: document.getElementById('city-coordinates'),
-    panelCityTitle: document.getElementById('panel-city-title'),
+    provinceName: document.getElementById('province-name'),
+    provincePopulation: document.getElementById('province-population'),
+    provinceCoordinates: document.getElementById('province-coordinates'),
+    panelProvinceTitle: document.getElementById('panel-province-title'),
     streetViewLocation: document.getElementById('street-view-location'),
     
-    statPopulation: document.getElementById('stat-population'),
-    statMedianIncome: document.getElementById('stat-median-income'),
-    statUnemployment: document.getElementById('stat-unemployment'),
-    statAge: document.getElementById('stat-age'),
+    statCurrentRate: document.getElementById('stat-current-rate'),
+    statAvgRate: document.getElementById('stat-avg-rate'),
+    statPeakRate: document.getElementById('stat-peak-rate'),
+    statPeakYear: document.getElementById('stat-peak-year'),
     
     chartOverview: document.getElementById('chart-overview'),
-    chartIncome: document.getElementById('chart-income'),
-    chartEmployment: document.getElementById('chart-employment'),
-    chartDemographics: document.getElementById('chart-demographics'),
+    chartTrend: document.getElementById('chart-trend'),
+    chartComparison: document.getElementById('chart-comparison'),
+    chartHistorical: document.getElementById('chart-historical'),
 };
 
 async function initApp() {
@@ -116,7 +118,7 @@ async function initMap() {
                     console.warn('Fog effect not supported:', e.message);
                 }
                 
-                addCityMarkers(map);
+                addProvinceMarkers(map);
                 
                 appState.mapLoaded = true;
                 resolve();
@@ -135,186 +137,313 @@ async function initMap() {
     });
 }
 
-function addCityMarkers(map) {
-    const cityFeatures = CANADIAN_CITIES.map((city, idx) => ({
+function addProvinceMarkers(map) {
+    // Create province markers with GDP-based sizing and coloring
+    const provinceFeatures = CANADIAN_PROVINCES_GDP.map((province, idx) => ({
         type: 'Feature',
         id: idx,
         properties: {
-            id: city.id,
-            name: city.name,
-            hasStreetView: city.hasStreetView,
+            id: province.id,
+            name: province.name,
+            gdp2023: province.gdp2023,
+            population: province.population,
+            growth2022_2023: province.growth2022_2023,
         },
         geometry: {
             type: 'Point',
-            coordinates: [city.lng, city.lat],
+            coordinates: province.center,
         },
     }));
     
     const geoJSON = {
         type: 'FeatureCollection',
-        features: cityFeatures,
+        features: provinceFeatures,
     };
     
-    map.addSource('cities', {
+    map.addSource('provinces', {
         type: 'geojson',
         data: geoJSON,
     });
     
+    // Calculate GDP range for sizing
+    const gdpValues = CANADIAN_PROVINCES_GDP.map(p => p.gdp2023);
+    const minGDP = Math.min(...gdpValues);
+    const maxGDP = Math.max(...gdpValues);
+    
+    // Add province markers with size based on GDP
     map.addLayer({
-        id: 'city-markers',
+        id: 'province-markers',
         type: 'circle',
-        source: 'cities',
+        source: 'provinces',
         paint: {
             'circle-radius': [
-                'case',
-                ['boolean', ['feature-state', 'hover'], false],
-                12,
-                10,
+                'interpolate',
+                ['linear'],
+                ['get', 'gdp2023'],
+                minGDP, 8,    // Smallest circles
+                maxGDP, 25   // Largest circles
             ],
             'circle-color': [
-                'case',
-                ['get', 'hasStreetView'],
-                '#38bdf8',
-                '#fbbf24',
+                'interpolate',
+                ['linear'],
+                ['get', 'gdp2023'],
+                minGDP, '#1e3a8a',      // Dark blue for lowest GDP
+                1000, '#3b82f6',       // Blue
+                5000, '#06b6d4',       // Cyan
+                10000, '#10b981',      // Green
+                20000, '#84cc16',      // Light green
+                30000, '#eab308',      // Yellow
+                50000, '#f97316',      // Orange
+                maxGDP, '#dc2626'      // Red for highest GDP
             ],
-            'circle-opacity': 0.9,
-            'circle-stroke-width': 2.5,
+            'circle-opacity': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                0.95,
+                0.85
+            ],
+            'circle-stroke-width': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                4,
+                2
+            ],
             'circle-stroke-color': '#ffffff',
-            'circle-stroke-opacity': 1,
+            'circle-stroke-opacity': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                1,
+                0.9
+            ],
         },
     });
     
+    // Add province labels
     map.addLayer({
-        id: 'city-labels',
+        id: 'province-labels',
         type: 'symbol',
-        source: 'cities',
+        source: 'provinces',
         layout: {
             'text-field': ['get', 'name'],
-            'text-size': 11,
-            'text-offset': [0, 1.5],
+            'text-size': [
+                'case',
+                ['boolean', ['feature-state', 'hover'], false],
+                14,
+                11
+            ],
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-offset': [0, 2.5],
             'text-anchor': 'top',
             'text-allow-overlap': false,
         },
         paint: {
             'text-color': '#ffffff',
             'text-halo-color': '#000000',
-            'text-halo-width': 1,
+            'text-halo-width': 2,
+            'text-halo-blur': 1,
             'text-opacity': [
                 'case',
                 ['boolean', ['feature-state', 'hover'], false],
                 1,
-                0.6,
+                0.9,
             ],
         },
     });
     
+    // Add hover effects
     let hoveredId = null;
-    map.on('mousemove', 'city-markers', (e) => {
+    map.on('mousemove', 'province-markers', (e) => {
         if (e.features.length > 0) {
             if (hoveredId !== null) {
-                map.setFeatureState({ source: 'cities', id: hoveredId }, { hover: false });
+                map.setFeatureState({ source: 'provinces', id: hoveredId }, { hover: false });
             }
             hoveredId = e.features[0].id;
-            map.setFeatureState({ source: 'cities', id: hoveredId }, { hover: true });
+            map.setFeatureState({ source: 'provinces', id: hoveredId }, { hover: true });
             map.getCanvas().style.cursor = 'pointer';
+            
+            // Show tooltip with GDP info
+            const feature = e.features[0];
+            const gdp = feature.properties.gdp2023;
+            const name = feature.properties.name;
+            
+            // Create or update tooltip
+            let tooltip = document.getElementById('map-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'map-tooltip';
+                tooltip.style.cssText = `
+                    position: absolute;
+                    background: rgba(0, 0, 0, 0.9);
+                    color: white;
+                    padding: 10px 14px;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    pointer-events: none;
+                    z-index: 1000;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                `;
+                document.body.appendChild(tooltip);
+            }
+            
+            tooltip.innerHTML = `
+                <strong>${name}</strong><br>
+                GDP 2023: $${gdp.toLocaleString()}B<br>
+                Growth: ${feature.properties.growth2022_2023}%
+            `;
+            tooltip.style.left = e.point.x + 15 + 'px';
+            tooltip.style.top = e.point.y - 10 + 'px';
+            tooltip.style.display = 'block';
         }
     });
     
-    map.on('mouseleave', 'city-markers', () => {
+    map.on('mouseleave', 'province-markers', () => {
         if (hoveredId !== null) {
-            map.setFeatureState({ source: 'cities', id: hoveredId }, { hover: false });
+            map.setFeatureState({ source: 'provinces', id: hoveredId }, { hover: false });
         }
         hoveredId = null;
         map.getCanvas().style.cursor = '';
+        
+        // Hide tooltip
+        const tooltip = document.getElementById('map-tooltip');
+        if (tooltip) {
+            tooltip.style.display = 'none';
+        }
     });
     
-    map.on('click', 'city-markers', (e) => {
+    map.on('click', 'province-markers', (e) => {
         if (e.features.length > 0) {
-            const cityId = e.features[0].properties.id;
-            selectCity(cityId);
+            const provinceId = e.features[0].properties.id;
+            selectProvince(provinceId);
         }
     });
 }
 
-function selectCity(cityId) {
-    const city = getCityById(cityId);
-    if (!city) return;
+function selectProvince(provinceId) {
+    const province = getProvinceById(provinceId);
+    if (!province) return;
     
-    console.log('🎯 City selected:', cityId, city.name);
+    console.log('🎯 Province selected:', provinceId, province.name);
     
-    appState.selectedCity = cityId;
+    appState.selectedProvince = provinceId;
     
-    updateCityInfoPanel(city);
+    updateProvinceInfoPanel(province);
     
-    updateDataPanel(cityId);
+    updateDataPanel(provinceId);
     
-    elements.cityInfoPanel.classList.remove('hidden');
+    elements.provinceInfoPanel.classList.remove('hidden');
     elements.dataPanel.classList.remove('hidden');
     
     if (elements.map) {
         elements.map.easeTo({
-            center: [city.lng, city.lat],
-            zoom: 13,
-            pitch: 30,
+            center: province.center,
+            zoom: 5,
+            pitch: 20,
             bearing: 0,
             duration: 1000,
             essential: true,
         });
     }
-    
-    if (city.hasStreetView) {
-        elements.btnStreetView.classList.remove('hidden');
-        elements.btnStreetViewCityPanel.classList.remove('hidden');
-        elements.btnStreetViewFloating.classList.remove('hidden');
-    } else {
-        elements.btnStreetView.classList.add('hidden');
-        elements.btnStreetViewCityPanel.classList.add('hidden');
-        elements.btnStreetViewFloating.classList.add('hidden');
-    }
 }
 
-function updateCityInfoPanel(city) {
-    elements.cityName.textContent = city.name;
-    elements.cityProvince.textContent = `📍 ${city.province}`;
-    elements.cityCoordinates.textContent = `Coordinates: ${city.lat.toFixed(4)}°, ${city.lng.toFixed(4)}°`;
+function updateProvinceInfoPanel(province) {
+    elements.provinceName.textContent = province.name;
+    elements.provincePopulation.textContent = `Population: ${formatNumber(province.population)}`;
+    elements.provinceCoordinates.textContent = `Center: ${province.center[1].toFixed(2)}°, ${province.center[0].toFixed(2)}°`;
 }
 
-function updateDataPanel(cityId) {
-    const metrics = getCityMetrics(cityId);
-    const city = getCityById(cityId);
+function updateDataPanel(provinceId) {
+    const metrics = getProvinceMetrics(provinceId);
+    const province = getProvinceById(provinceId);
     
-    if (!metrics || !city) return;
+    if (!metrics || !province) return;
     
-    elements.panelCityTitle.textContent = `${city.name} Data`;
+    elements.panelProvinceTitle.textContent = `${province.name} GDP Data`;
     
-    elements.statPopulation.textContent = formatNumber(metrics.population);
-    elements.statMedianIncome.textContent = formatCurrency(metrics.medianIncome);
-    elements.statUnemployment.textContent = formatPercentage(metrics.unemploymentRate);
-    elements.statAge.textContent = `${metrics.avgAge.toFixed(1)} yrs`;
+    elements.statCurrentRate.textContent = formatCurrency(metrics.gdp2023);
+    elements.statAvgRate.textContent = formatCurrency(metrics.gdp2022);
+    elements.statPeakRate.textContent = formatCurrency(metrics.gdp2021);
+    elements.statPeakYear.textContent = formatPercentage(metrics.growth2022_2023);
     
-    renderCharts(metrics);
+    renderCharts(metrics, provinceId);
 }
 
-function renderCharts(metrics) {
-    d3.select(elements.chartIncome).selectAll('*').remove();
-    d3.select(elements.chartEmployment).selectAll('*').remove();
-    d3.select(elements.chartDemographics).selectAll('*').remove();
+function renderCharts(metrics, provinceId) {
+    d3.select(elements.chartTrend).selectAll('*').remove();
+    d3.select(elements.chartComparison).selectAll('*').remove();
     
-    renderIncomeChart(metrics);
-    
-    renderEmploymentChart(metrics);
-    
-    renderDemographicsChart(metrics);
+    renderTrendChart(metrics);
+    renderComparisonChart(metrics);
 }
 
-function renderIncomeChart(metrics) {
-    if (!metrics.incomeDistribution) return;
+function renderTrendChart(metrics) {
+    if (!metrics.recentTrend) return;
     
     const width = 350;
     const height = 250;
     const margin = { top: 20, right: 20, bottom: 30, left: 40 };
     
-    const svg = d3.select(elements.chartIncome)
+    const svg = d3.select(elements.chartTrend)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+    
+    const chart = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+    
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    
+    const xScale = d3.scaleLinear()
+        .domain(d3.extent(metrics.recentTrend, d => d.year))
+        .range([0, innerWidth]);
+    
+    const yScale = d3.scaleLinear()
+        .domain([0, Math.max(...metrics.recentTrend.map(d => d.gdp)) * 1.1])
+        .range([innerHeight, 0]);
+    
+    const line = d3.line()
+        .x(d => xScale(d.year))
+        .y(d => yScale(d.gdp))
+        .curve(d3.curveMonotoneX);
+    
+    chart.append('path')
+        .datum(metrics.recentTrend)
+        .attr('fill', 'none')
+        .attr('stroke', '#2563eb')
+        .attr('stroke-width', 3)
+        .attr('d', line);
+    
+    chart.selectAll('.dot')
+        .data(metrics.recentTrend)
+        .join('circle')
+        .attr('class', 'dot')
+        .attr('cx', d => xScale(d.year))
+        .attr('cy', d => yScale(d.gdp))
+        .attr('r', 4)
+        .attr('fill', '#2563eb');
+    
+    chart.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale).tickFormat(d3.format('d')))
+        .selectAll('text')
+        .attr('font-size', '11px');
+    
+    chart.append('g')
+        .call(d3.axisLeft(yScale).tickFormat(d => formatCurrency(d)))
+        .selectAll('text')
+        .attr('font-size', '11px');
+}
+
+function renderComparisonChart(metrics) {
+    if (!metrics.comparisonData) return;
+    
+    const width = 350;
+    const height = 250;
+    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+    
+    const svg = d3.select(elements.chartComparison)
         .append('svg')
         .attr('width', width)
         .attr('height', height);
@@ -326,23 +455,23 @@ function renderIncomeChart(metrics) {
     const innerHeight = height - margin.top - margin.bottom;
     
     const xScale = d3.scaleBand()
-        .domain(metrics.incomeDistribution.map(d => d.range))
+        .domain(metrics.comparisonData.map(d => d.province))
         .range([0, innerWidth])
         .padding(0.1);
     
     const yScale = d3.scaleLinear()
-        .domain([0, Math.max(...metrics.incomeDistribution.map(d => d.percentage))])
+        .domain([0, Math.max(...metrics.comparisonData.map(d => d.gdp)) * 1.1])
         .range([innerHeight, 0]);
     
     chart.selectAll('.bar')
-        .data(metrics.incomeDistribution)
+        .data(metrics.comparisonData)
         .join('rect')
         .attr('class', 'bar')
-        .attr('x', d => xScale(d.range))
-        .attr('y', d => yScale(d.percentage))
+        .attr('x', d => xScale(d.province))
+        .attr('y', d => yScale(d.gdp))
         .attr('width', xScale.bandwidth())
-        .attr('height', d => innerHeight - yScale(d.percentage))
-        .attr('fill', '#2563eb')
+        .attr('height', d => innerHeight - yScale(d.gdp))
+        .attr('fill', d => getGDPColor(d.gdp))
         .attr('opacity', 0.8);
     
     chart.append('g')
@@ -351,163 +480,43 @@ function renderIncomeChart(metrics) {
         .selectAll('text')
         .attr('transform', 'rotate(-45)')
         .attr('text-anchor', 'end')
-        .attr('font-size', '11px');
+        .attr('font-size', '10px');
     
     chart.append('g')
-        .call(d3.axisLeft(yScale))
+        .call(d3.axisLeft(yScale).tickFormat(d => formatCurrency(d)))
         .selectAll('text')
         .attr('font-size', '11px');
     
     chart.selectAll('.label')
-        .data(metrics.incomeDistribution)
+        .data(metrics.comparisonData)
         .join('text')
         .attr('class', 'label')
-        .attr('x', d => xScale(d.range) + xScale.bandwidth() / 2)
-        .attr('y', d => yScale(d.percentage) - 5)
+        .attr('x', d => xScale(d.province) + xScale.bandwidth() / 2)
+        .attr('y', d => yScale(d.gdp) - 5)
         .attr('text-anchor', 'middle')
-        .attr('font-size', '11px')
+        .attr('font-size', '10px')
         .attr('font-weight', 'bold')
         .attr('fill', '#1e40af')
-        .text(d => `${d.percentage}%`);
+        .text(d => formatCurrency(d.gdp));
 }
 
-function renderEmploymentChart(metrics) {
-    if (!metrics.employmentBySector) return;
-    
-    const width = 350;
-    const height = 250;
-    const radius = Math.min(width, height) / 2 - 40;
-    
-    const svg = d3.select(elements.chartEmployment)
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height);
-    
-    const g = svg.append('g')
-        .attr('transform', `translate(${width / 2},${height / 2})`);
-    
-    const pie = d3.pie().value(d => d.percentage);
-    const arc = d3.arc().innerRadius(0).outerRadius(radius);
-    
-    const colors = d3.schemeSet2;
-    const color = d3.scaleOrdinal()
-        .domain(metrics.employmentBySector.map(d => d.sector))
-        .range(colors);
-    
-    const arcs = g.selectAll('.arc')
-        .data(pie(metrics.employmentBySector))
-        .join('g')
-        .attr('class', 'arc');
-    
-    arcs.append('path')
-        .attr('d', arc)
-        .attr('fill', d => color(d.data.sector))
-        .attr('opacity', 0.8);
-    
-    arcs.append('text')
-        .attr('transform', d => `translate(${arc.centroid(d)})`)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '11px')
-        .attr('font-weight', 'bold')
-        .attr('fill', 'white')
-        .text(d => `${d.data.percentage}%`);
-    
-    const legend = svg.append('g')
-        .attr('transform', `translate(${-radius - 20}, ${-radius + 20})`);
-    
-    legend.selectAll('.legend-item')
-        .data(metrics.employmentBySector)
-        .join('g')
-        .attr('class', 'legend-item')
-        .attr('transform', (d, i) => `translate(0, ${i * 20})`)
-        .call(g => {
-            g.append('rect')
-                .attr('width', 12)
-                .attr('height', 12)
-                .attr('fill', d => color(d.sector));
-            
-            g.append('text')
-                .attr('x', 16)
-                .attr('y', 10)
-                .attr('font-size', '11px')
-                .text(d => d.sector);
-        });
-}
-
-function renderDemographicsChart(metrics) {
-    if (!metrics.ageDistribution) return;
-    
-    const width = 350;
-    const height = 250;
-    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
-    
-    const svg = d3.select(elements.chartDemographics)
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height);
-    
-    const chart = svg.append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
-    
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-    
-    const xScale = d3.scaleBand()
-        .domain(metrics.ageDistribution.map(d => d.range))
-        .range([0, innerWidth])
-        .padding(0.1);
-    
-    const yScale = d3.scaleLinear()
-        .domain([0, Math.max(...metrics.ageDistribution.map(d => d.percentage))])
-        .range([innerHeight, 0]);
-    
-    const colorScale = d3.scaleLinear()
-        .domain([0, metrics.ageDistribution.length - 1])
-        .range(['#06b6d4', '#2563eb']);
-    
-    chart.selectAll('.bar')
-        .data(metrics.ageDistribution)
-        .join('rect')
-        .attr('class', 'bar')
-        .attr('x', d => xScale(d.range))
-        .attr('y', d => yScale(d.percentage))
-        .attr('width', xScale.bandwidth())
-        .attr('height', d => innerHeight - yScale(d.percentage))
-        .attr('fill', (d, i) => colorScale(i))
-        .attr('opacity', 0.85);
-    
-    chart.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text')
-        .attr('font-size', '11px');
-    
-    chart.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text')
-        .attr('font-size', '11px');
-}
 
 function enterStreetView() {
-    const city = getCityById(appState.selectedCity);
-    console.log('🎬 enterStreetView called, city:', city);
+    const province = getProvinceById(appState.selectedProvince);
+    console.log('🎬 enterStreetView called, province:', province);
     
-    if (!city || !city.hasStreetView) {
-        console.log('❌ City not found or no street view');
+    if (!province) {
+        console.log('❌ Province not found');
         return;
     }
     
     appState.streetViewOpen = true;
-    console.log('📸 Opening street view for:', city.name);
+    console.log('📸 Opening street view for:', province.name);
     
     elements.streetViewContainer.classList.remove('hidden');
     console.log('✅ Container shown');
     
     const canvas = document.getElementById('street-view-canvas');
-    canvas.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;"><p>Loading street view...</p></div>';
-    
-    if (MAPILLARY_ACCESS_TOKEN === 'YOUR_TOKEN_HERE') {
-        console.log('⚠️ Token not set');
         canvas.innerHTML = `
             <div style="
                 width: 100%;
@@ -521,78 +530,14 @@ function enterStreetView() {
                 text-align: center;
                 padding: 2rem;
             ">
-                <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
-                <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Mapillary Token Required</h2>
-                <p>Token is not set. Please check app.js</p>
+            <div style="font-size: 2rem; margin-bottom: 1rem;">🏛️</div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Provincial View</h2>
+            <p>Street view not available for ${province.name}</p>
+            <p style="font-size: 0.9rem; color: #ccc;">Provincial-level data visualization</p>
             </div>
         `;
-        return;
-    }
     
-    console.log('🔍 Fetching Mapillary image...');
-    
-    fetchMapillaryImage(city.lat, city.lng)
-        .then(imageId => {
-            console.log('📍 Image ID found:', imageId);
-            
-            if (!imageId) {
-                console.log('❌ No image found for location');
-                canvas.innerHTML = `
-                    <div style="
-                        width: 100%;
-                        height: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        flex-direction: column;
-                        background: #1a1a2e;
-                        color: white;
-                        text-align: center;
-                    ">
-                        <div style="font-size: 2rem; margin-bottom: 1rem;">📍</div>
-                        <p style="font-size: 1.1rem;">No Mapillary coverage for ${city.name}</p>
-                        <p style="font-size: 0.9rem; color: #ccc;">This area may not have street-level imagery available.</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            console.log('🎥 Creating Mapillary viewer...');
-            
-            canvas.innerHTML = '';
-            
-            const viewer = new mapillary.Viewer({
-                accessToken: MAPILLARY_ACCESS_TOKEN,
-                container: 'street-view-canvas',
-                imageId: imageId,
-            });
-            
-            console.log('✅ Viewer created');
-            
-            elements.streetViewLocation.textContent = `Viewing: ${city.name}, ${city.province}`;
-            
-            console.log(`✅ Mapillary loaded for ${city.name}`);
-        })
-        .catch(error => {
-            console.error('❌ Error loading Mapillary:', error);
-            canvas.innerHTML = `
-                <div style="
-                    width: 100%;
-                    height: 100%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    flex-direction: column;
-                    background: #1a1a2e;
-                    color: white;
-                    text-align: center;
-                ">
-                    <div style="font-size: 2rem; margin-bottom: 1rem;">❌</div>
-                    <p style="font-size: 1.1rem;">Error loading street view</p>
-                    <p style="font-size: 0.9rem; color: #ccc;">${error.message}</p>
-                </div>
-            `;
-        });
+    elements.streetViewLocation.textContent = `Viewing: ${province.name}`;
 }
 
 async function fetchMapillaryImage(lat, lng) {
@@ -629,7 +574,7 @@ function showLoadingIndicator(show) {
 
 function closeDataPanel() {
     elements.dataPanel.classList.add('hidden');
-    appState.selectedCity = null;
+    appState.selectedProvince = null;
     
     if (elements.map) {
         elements.map.easeTo({
@@ -642,8 +587,42 @@ function closeDataPanel() {
     }
 }
 
-function closeCityPanel() {
-    elements.cityInfoPanel.classList.add('hidden');
+function closeProvincePanel() {
+    elements.provinceInfoPanel.classList.add('hidden');
+}
+
+function updateMapMarkersForYear(year) {
+    if (!elements.map) return;
+    
+    // Update province markers with unemployment data for the selected year
+    const provinceFeatures = CANADIAN_PROVINCES_UNEMPLOYMENT.map((province, idx) => {
+        const historicalData = getHistoricalData(province.id);
+        const yearData = historicalData.find(d => d.year === year);
+        const unemploymentRate = yearData ? yearData.rate : province.currentUnemploymentRate;
+        
+        return {
+            type: 'Feature',
+            id: idx,
+            properties: {
+                id: province.id,
+                name: province.name,
+                unemploymentRate: unemploymentRate,
+                population: province.population,
+                year: year,
+            },
+            geometry: {
+                type: 'Point',
+                coordinates: province.center,
+            },
+        };
+    });
+    
+    const geoJSON = {
+        type: 'FeatureCollection',
+        features: provinceFeatures,
+    };
+    
+    elements.map.getSource('provinces').setData(geoJSON);
 }
 
 function toggleLegend() {
@@ -683,10 +662,10 @@ function setupEventListeners() {
     elements.btnToggleLegend?.addEventListener('click', toggleLegend);
     
     elements.btnCloseDataPanel?.addEventListener('click', closeDataPanel);
-    elements.btnCloseCityPanel?.addEventListener('click', closeCityPanel);
+    elements.btnCloseProvincePanel?.addEventListener('click', closeProvincePanel);
     
     elements.btnStreetView?.addEventListener('click', enterStreetView);
-    elements.btnStreetViewCityPanel?.addEventListener('click', enterStreetView);
+    elements.btnStreetViewProvincePanel?.addEventListener('click', enterStreetView);
     elements.btnExitStreetView?.addEventListener('click', exitStreetView);
     
     elements.btnStreetViewFloating?.addEventListener('click', enterStreetView);
