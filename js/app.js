@@ -1,15 +1,39 @@
 import {
     CANADIAN_PROVINCES_GDP,
+    CANADIAN_PROVINCES_INCOME,
     loadProvinceData,
     getProvinceMetrics,
     getProvinceById,
     getAllProvinces,
     formatCurrency,
+    formatIncome,
     formatPercentage,
     formatNumber,
     getGDPColor,
+    getIncomeColor,
+    getDataColor,
     getGDPStatus,
+    getIncomeStatus,
+    getDataStatus,
+    setCurrentDataType,
+    getCurrentDataType,
 } from './data.js';
+
+const PROVINCE_POPULATIONS = {
+    'nl': 510_550,
+    'pe': 154_331,
+    'ns': 969_383,
+    'nb': 775_610,
+    'qc': 8_501_833,
+    'on': 14_223_942,
+    'mb': 1_342_153,
+    'sk': 1_132_505,
+    'ab': 4_262_635,
+    'bc': 5_000_879,
+    'yt': 40_232,
+    'nt': 41_070,
+    'nu': 36_858
+};
 
 const MAPILLARY_ACCESS_TOKEN = 'MLY|25924883943764997|4ac03280f19bbd17e1e57bbef97fb5f2';
 
@@ -24,6 +48,7 @@ const elements = {
     map: null,
     mapContainer: document.getElementById('map-container'),
     
+    dataTypeSelect: document.getElementById('data-type-select'),
     btnResetView: document.getElementById('btn-reset-view'),
     btnCanadaView: document.getElementById('btn-canada-view'),
     btnToggleLegend: document.getElementById('btn-toggle-legend'),
@@ -38,12 +63,16 @@ const elements = {
     dataPanel: document.getElementById('data-panel'),
     provinceInfoPanel: document.getElementById('province-info-panel'),
     legendPanel: document.getElementById('legend-panel'),
+    legendTitle: document.getElementById('legend-title'),
+    legendItems: document.getElementById('legend-items'),
+    legendNote: document.getElementById('legend-note'),
     streetViewContainer: document.getElementById('street-view-container'),
     onboardingTooltip: document.getElementById('onboarding-tooltip'),
     loadingIndicator: document.getElementById('loading-indicator'),
     
     tabButtons: document.querySelectorAll('.tab-btn'),
     tabPanes: document.querySelectorAll('.tab-pane'),
+    tabTrendBtn: document.getElementById('tab-trend-btn'),
     
     provinceName: document.getElementById('province-name'),
     provincePopulation: document.getElementById('province-population'),
@@ -55,24 +84,35 @@ const elements = {
     statAvgRate: document.getElementById('stat-avg-rate'),
     statPeakRate: document.getElementById('stat-peak-rate'),
     statPeakYear: document.getElementById('stat-peak-year'),
+    statLabel1: document.getElementById('stat-label-1'),
+    statLabel2: document.getElementById('stat-label-2'),
+    statLabel3: document.getElementById('stat-label-3'),
+    statLabel4: document.getElementById('stat-label-4'),
     
     chartOverview: document.getElementById('chart-overview'),
     chartTrend: document.getElementById('chart-trend'),
     chartComparison: document.getElementById('chart-comparison'),
     chartHistorical: document.getElementById('chart-historical'),
+    
+    trendTitle: document.getElementById('trend-title'),
+    trendNote: document.getElementById('trend-note'),
+    comparisonTitle: document.getElementById('comparison-title'),
+    comparisonNote: document.getElementById('comparison-note'),
 };
 
 async function initApp() {
     try {
         showLoadingIndicator(true);
         
-        // Load GDP data from CSV first
-        console.log('📊 Loading province GDP data...');
+        console.log('📊 Loading province data...');
         await loadProvinceData();
         
         await initMap();
         
         setupEventListeners();
+        
+        updateLegend();
+        updateTabLabels();
         
         setTimeout(() => {
             if (elements.onboardingTooltip) {
@@ -143,9 +183,6 @@ async function initMap() {
 }
 
 async function addProvincePolygons(map) {
-    // Province colors will be determined by GDP dynamically
-    
-    // Mapping from GeoJSON names to our province IDs
     const provinceNameToId = {
         'Alberta': 'ab',
         'British Columbia': 'bc',
@@ -164,18 +201,27 @@ async function addProvincePolygons(map) {
     };
     
     try {
-        // Load Canadian province boundaries from a GeoJSON source
         const response = await fetch('https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/canada.geojson');
         const canadaGeoJSON = await response.json();
         
         console.log('✅ Loaded Canada GeoJSON data');
         
-        // Enhance the GeoJSON features with our data
         canadaGeoJSON.features = canadaGeoJSON.features.map((feature, idx) => {
             const provinceName = feature.properties.name;
             const provinceId = provinceNameToId[provinceName];
-            const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
-            const gdp = provinceData?.gdp2023 || 0;
+            
+            let dataValue = 0;
+            let color = '#ff0080';
+            
+            if (getCurrentDataType() === 'income') {
+                const provinceData = CANADIAN_PROVINCES_INCOME.find(p => p.id === provinceId);
+                dataValue = provinceData?.averageIncome || 0;
+                color = provinceData?.averageIncome ? getIncomeColor(dataValue) : '#666666';
+            } else {
+                const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
+                dataValue = provinceData?.gdp2023 || 0;
+                color = getGDPColor(dataValue);
+            }
             
             return {
                 ...feature,
@@ -183,20 +229,18 @@ async function addProvincePolygons(map) {
                 properties: {
                     ...feature.properties,
                     id: provinceId,
-                    color: getGDPColor(gdp), // Dynamic color based on GDP
-                    gdp2023: gdp,
-                    population: provinceData?.population || 0,
+                    color: color,
+                    dataValue: dataValue,
+                    population: PROVINCE_POPULATIONS[provinceId] || 0,
                 }
             };
         });
         
-        // Add source for province polygons
         map.addSource('province-polygons', {
             type: 'geojson',
             data: canadaGeoJSON,
         });
         
-        // Add fill layer for provinces
         map.addLayer({
             id: 'province-fills',
             type: 'fill',
@@ -212,7 +256,6 @@ async function addProvincePolygons(map) {
             },
         });
         
-        // Add outline layer for provinces
         map.addLayer({
             id: 'province-outlines',
             type: 'line',
@@ -229,7 +272,6 @@ async function addProvincePolygons(map) {
             },
         });
         
-        // Add hover effects for polygons
         let hoveredPolygonId = null;
         
     map.on('mousemove', 'province-fills', (e) => {
@@ -247,14 +289,18 @@ async function addProvincePolygons(map) {
             );
             map.getCanvas().style.cursor = 'pointer';
             
-            // Show tooltip with GDP info
             const feature = e.features[0];
-            const gdp = feature.properties.gdp2023;
+            const dataValue = feature.properties.dataValue;
             const name = feature.properties.name;
             const provinceId = feature.properties.id;
-            const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
             
-            // Create or update tooltip
+            let provinceData = null;
+            if (getCurrentDataType() === 'income') {
+                provinceData = CANADIAN_PROVINCES_INCOME.find(p => p.id === provinceId);
+            } else {
+                provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
+            }
+            
             let tooltip = document.getElementById('map-tooltip');
             if (!tooltip) {
                 tooltip = document.createElement('div');
@@ -275,11 +321,23 @@ async function addProvincePolygons(map) {
                 document.body.appendChild(tooltip);
             }
             
-            tooltip.innerHTML = `
-                <strong>${name}</strong><br>
-                GDP 2023: $${gdp.toLocaleString()}B<br>
-                Growth: ${provinceData?.growth2022_2023 || 0}%
-            `;
+            const dataType = getCurrentDataType();
+            let tooltipContent = `<strong>${name}</strong><br>`;
+            
+            if (dataType === 'income') {
+                if (provinceData?.averageIncome === null) {
+                    tooltipContent += `Avg Income: N/A<br>`;
+                    tooltipContent += `Status: No Data`;
+                } else {
+                    tooltipContent += `Avg Income: ${formatIncome(dataValue)}<br>`;
+                    tooltipContent += `Status: ${getIncomeStatus(dataValue)}`;
+                }
+            } else {
+                tooltipContent += `GDP 2023: $${dataValue.toLocaleString()}B<br>`;
+                tooltipContent += `Status: ${getGDPStatus(dataValue)}`;
+            }
+            
+            tooltip.innerHTML = tooltipContent;
             tooltip.style.left = e.point.x + 15 + 'px';
             tooltip.style.top = e.point.y - 10 + 'px';
             tooltip.style.display = 'block';
@@ -296,14 +354,12 @@ async function addProvincePolygons(map) {
         hoveredPolygonId = null;
         map.getCanvas().style.cursor = '';
         
-        // Hide tooltip
         const tooltip = document.getElementById('map-tooltip');
         if (tooltip) {
             tooltip.style.display = 'none';
         }
     });
         
-        // Add click handler for province polygons
         map.on('click', 'province-fills', (e) => {
             if (e.features.length > 0) {
                 const feature = e.features[0];
@@ -317,12 +373,10 @@ async function addProvincePolygons(map) {
                     return;
                 }
                 
-                // Calculate bounds for the clicked province
                 const coordinates = feature.geometry.coordinates;
                 let bounds;
                 
                 try {
-                    // Handle both Polygon and MultiPolygon geometries
                     if (feature.geometry.type === 'Polygon') {
                         bounds = coordinates[0].reduce((bounds, coord) => {
                             return bounds.extend(coord);
@@ -336,11 +390,9 @@ async function addProvincePolygons(map) {
                     
                     console.log('✅ Calculated bounds:', bounds);
                     
-                    // Select the province and zoom to its bounds
                     selectProvince(provinceId, bounds);
                 } catch (error) {
                     console.error('❌ Error calculating bounds:', error);
-                    // Fallback to selecting without bounds
                     selectProvince(provinceId);
                 }
             }
@@ -366,14 +418,12 @@ function selectProvince(provinceId, bounds = null) {
     
     appState.selectedProvince = provinceId;
     
-    // Update panels
     console.log('📊 Updating province info panel...');
     updateProvinceInfoPanel(province);
     
     console.log('📈 Updating data panel...');
     updateDataPanel(provinceId);
     
-    // Show panels
     console.log('👁️ Showing panels...');
     if (elements.provinceInfoPanel) {
         elements.provinceInfoPanel.classList.remove('hidden');
@@ -389,14 +439,12 @@ function selectProvince(provinceId, bounds = null) {
         console.error('❌ Data panel element not found');
     }
     
-    // Zoom to province
     if (elements.map) {
-        // If bounds are provided (from polygon click), fit to bounds
         if (bounds) {
             console.log('🗺️ Fitting to bounds...');
             try {
                 elements.map.fitBounds(bounds, {
-                    padding: { top: 100, bottom: 100, left: 100, right: 450 }, // Extra padding on right for data panel
+                    padding: { top: 100, bottom: 100, left: 100, right: 450 },
                     pitch: 20,
                     bearing: 0,
                     duration: 1500,
@@ -407,7 +455,6 @@ function selectProvince(provinceId, bounds = null) {
                 console.error('❌ Error fitting bounds:', error);
             }
         } else {
-            // Fallback to center-based zoom
             console.log('🗺️ Zooming to center...');
             elements.map.easeTo({
                 center: province.center,
@@ -435,31 +482,219 @@ function updateDataPanel(provinceId) {
     
     if (!metrics || !province) return;
     
-    elements.panelProvinceTitle.textContent = `${province.name} GDP Data`;
+    const dataType = getCurrentDataType();
     
-    elements.statCurrentRate.textContent = formatCurrency(metrics.gdp2023);
-    elements.statAvgRate.textContent = formatCurrency(metrics.gdp2022);
-    elements.statPeakRate.textContent = formatCurrency(metrics.gdp2021);
-    elements.statPeakYear.textContent = formatPercentage(metrics.growth2022_2023);
+    elements.panelProvinceTitle.textContent = `${province.name} ${dataType.toUpperCase()} Data`;
+    
+    if (dataType === 'income') {
+        elements.statLabel1.textContent = 'Average Income';
+        elements.statLabel2.textContent = 'Median Income';
+        elements.statLabel3.textContent = 'Sample Size';
+        elements.statLabel4.textContent = 'Status';
+        
+        if (metrics.averageIncome === null) {
+            elements.statCurrentRate.textContent = 'N/A';
+            elements.statAvgRate.textContent = 'N/A';
+            elements.statPeakRate.textContent = '0';
+            elements.statPeakYear.textContent = 'No Data';
+        } else {
+            elements.statCurrentRate.textContent = formatIncome(metrics.averageIncome);
+            elements.statAvgRate.textContent = formatIncome(metrics.medianIncome);
+            elements.statPeakRate.textContent = formatNumber(metrics.sampleSize);
+            elements.statPeakYear.textContent = getIncomeStatus(metrics.averageIncome);
+        }
+    } else {
+        elements.statLabel1.textContent = 'GDP 2023';
+        elements.statLabel2.textContent = 'GDP 2022';
+        elements.statLabel3.textContent = 'GDP 2021';
+        elements.statLabel4.textContent = 'Growth 2022-23';
+        
+        elements.statCurrentRate.textContent = formatCurrency(metrics.gdp2023);
+        elements.statAvgRate.textContent = formatCurrency(metrics.gdp2022);
+        elements.statPeakRate.textContent = formatCurrency(metrics.gdp2021);
+        elements.statPeakYear.textContent = formatPercentage(metrics.growth2022_2023);
+    }
     
     renderCharts(metrics, provinceId);
+}
+
+function updateLegend() {
+    const dataType = getCurrentDataType();
+    
+    if (dataType === 'income') {
+        elements.legendTitle.textContent = 'Income Color Legend';
+        elements.legendNote.textContent = 'Province colors based on average income';
+        
+        elements.legendItems.innerHTML = `
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                <span>Very High ($60k+)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #0070f3;"></span>
+                <span>High ($50k-$60k)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #7928ca;"></span>
+                <span>Moderate ($40k-$50k)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                <span>Low ($30k-$40k)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #ff0080;"></span>
+                <span>Very Low (<$30k)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #666666;"></span>
+                <span>No Data (N/A)</span>
+            </div>
+        `;
+    } else {
+        elements.legendTitle.textContent = 'GDP Color Legend';
+        elements.legendNote.textContent = 'Province colors based on GDP';
+        
+        elements.legendItems.innerHTML = `
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                <span>Very High ($300B+)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #0070f3;"></span>
+                <span>High ($100B-$300B)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #7928ca;"></span>
+                <span>Moderate ($50B-$100B)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                <span>Low ($10B-$50B)</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-marker" style="background-color: #ff0080;"></span>
+                <span>Very Low (<$10B)</span>
+            </div>
+        `;
+    }
+}
+
+function updateTabLabels() {
+    const dataType = getCurrentDataType();
+    
+    if (dataType === 'income') {
+        elements.tabTrendBtn.textContent = '📊 Income Distribution';
+        elements.trendTitle.textContent = 'Income Distribution';
+        elements.trendNote.textContent = 'Box plot showing income quartiles and outliers';
+        elements.comparisonTitle.textContent = 'Provincial Income Comparison';
+        elements.comparisonNote.textContent = 'Average income by province';
+    } else {
+        elements.tabTrendBtn.textContent = '📊 GDP Trend';
+        elements.trendTitle.textContent = 'GDP Trend (2021-2023)';
+        elements.trendNote.textContent = '3-year GDP trend';
+        elements.comparisonTitle.textContent = 'Provincial GDP Comparison';
+        elements.comparisonNote.textContent = 'GDP by province (2023)';
+    }
+}
+
+function switchDataType(newDataType) {
+    console.log(`🔄 Switching data type to: ${newDataType}`);
+    
+    setCurrentDataType(newDataType);
+    
+    updateLegend();
+    
+    updateTabLabels();
+    
+    updateMapColors();
+    
+    if (appState.selectedProvince) {
+        updateDataPanel(appState.selectedProvince);
+    }
+}
+
+function updateMapColors() {
+    if (!elements.map) return;
+    
+    const dataType = getCurrentDataType();
+    
+    const source = elements.map.getSource('province-polygons');
+    if (!source || !source._data) return;
+    
+    source._data.features = source._data.features.map(feature => {
+        const provinceId = feature.properties.id;
+        let dataValue = 0;
+        let color = '#ff0080';
+        
+        if (dataType === 'income') {
+            const provinceData = CANADIAN_PROVINCES_INCOME.find(p => p.id === provinceId);
+            dataValue = provinceData?.averageIncome || 0;
+            color = provinceData?.averageIncome ? getIncomeColor(dataValue) : '#666666';
+        } else {
+            const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
+            dataValue = provinceData?.gdp2023 || 0;
+            color = getGDPColor(dataValue);
+        }
+        
+        return {
+            ...feature,
+            properties: {
+                ...feature.properties,
+                color: color,
+                dataValue: dataValue
+            }
+        };
+    });
+    
+    elements.map.getSource('province-polygons').setData(source._data);
 }
 
 function renderCharts(metrics, provinceId) {
     d3.select(elements.chartTrend).selectAll('*').remove();
     d3.select(elements.chartComparison).selectAll('*').remove();
     
-    renderTrendChart(metrics);
-    renderComparisonChart(metrics);
+    const dataType = getCurrentDataType();
+    
+    if (dataType === 'income') {
+        renderIncomeBoxPlot(metrics, provinceId);
+        renderIncomeComparisonChart(metrics);
+    } else {
+        renderTrendChart(metrics);
+        renderComparisonChart(metrics);
+    }
 }
 
-function renderTrendChart(metrics) {
-    if (!metrics.recentTrend) return;
+function renderIncomeBoxPlot(metrics, provinceId) {
+    if (!metrics.rawIncomeData || metrics.rawIncomeData.length === 0) {
+        d3.select(elements.chartTrend)
+            .append('div')
+            .style('display', 'flex')
+            .style('align-items', 'center')
+            .style('justify-content', 'center')
+            .style('height', '280px')
+            .style('color', '#94a3b8')
+            .style('font-size', '16px')
+            .style('font-weight', '500')
+            .text('No income data available for this territory');
+        return;
+    }
     
-    // Colors - using emerald/green for growth trend
-    const lineColor = '#10b981';      // Emerald
-    const dotColor = '#34d399';       // Light emerald
-    const areaColor = '#10b981';      // Emerald
+    const data = metrics.rawIncomeData.sort((a, b) => a - b);
+    const q1 = d3.quantile(data, 0.25);
+    const median = d3.quantile(data, 0.5);
+    const q3 = d3.quantile(data, 0.75);
+    const iqr = q3 - q1;
+    const lowerFence = q1 - 1.5 * iqr;
+    const upperFence = q3 + 1.5 * iqr;
+    
+    const outliers = data.filter(d => d < lowerFence || d > upperFence);
+    const whiskerMin = Math.max(lowerFence, d3.min(data));
+    const whiskerMax = Math.min(upperFence, d3.max(data));
+    
+    const boxColor = '#00d9ff';
+    const whiskerColor = '#e5e7eb';
+    const outlierColor = '#f81ce5';
     const textColor = '#e5e7eb';
     const gridColor = '#374151';
     
@@ -479,7 +714,159 @@ function renderTrendChart(metrics) {
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
     
-    // Use band scale for better spacing of years
+    const yScale = d3.scaleLinear()
+        .domain([Math.min(whiskerMin, d3.min(outliers) || whiskerMin), 
+                 Math.max(whiskerMax, d3.max(outliers) || whiskerMax)])
+        .range([innerHeight, 0]);
+    
+    chart.selectAll('.grid-line')
+        .data(yScale.ticks(6))
+        .join('line')
+        .attr('class', 'grid-line')
+        .attr('x1', 0)
+        .attr('x2', innerWidth)
+        .attr('y1', d => yScale(d))
+        .attr('y2', d => yScale(d))
+        .attr('stroke', gridColor)
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.3);
+    
+    const boxWidth = innerWidth * 0.3;
+    const boxX = (innerWidth - boxWidth) / 2;
+    
+    chart.append('line')
+        .attr('x1', boxX + boxWidth / 2)
+        .attr('x2', boxX + boxWidth / 2)
+        .attr('y1', yScale(whiskerMin))
+        .attr('y2', yScale(whiskerMax))
+        .attr('stroke', whiskerColor)
+        .attr('stroke-width', 2);
+    
+    chart.append('line')
+        .attr('x1', boxX + boxWidth / 2 - 10)
+        .attr('x2', boxX + boxWidth / 2 + 10)
+        .attr('y1', yScale(whiskerMin))
+        .attr('y2', yScale(whiskerMin))
+        .attr('stroke', whiskerColor)
+        .attr('stroke-width', 2);
+    
+    chart.append('line')
+        .attr('x1', boxX + boxWidth / 2 - 10)
+        .attr('x2', boxX + boxWidth / 2 + 10)
+        .attr('y1', yScale(whiskerMax))
+        .attr('y2', yScale(whiskerMax))
+        .attr('stroke', whiskerColor)
+        .attr('stroke-width', 2);
+    
+    chart.append('rect')
+        .attr('x', boxX)
+        .attr('y', yScale(q3))
+        .attr('width', boxWidth)
+        .attr('height', yScale(q1) - yScale(q3))
+        .attr('fill', boxColor)
+        .attr('fill-opacity', 0.3)
+        .attr('stroke', boxColor)
+        .attr('stroke-width', 2);
+    
+    chart.append('line')
+        .attr('x1', boxX)
+        .attr('x2', boxX + boxWidth)
+        .attr('y1', yScale(median))
+        .attr('y2', yScale(median))
+        .attr('stroke', '#ffffff')
+        .attr('stroke-width', 3);
+    
+    if (outliers.length > 0) {
+        chart.selectAll('.outlier')
+            .data(outliers)
+            .join('circle')
+            .attr('class', 'outlier')
+            .attr('cx', boxX + boxWidth / 2)
+            .attr('cy', d => yScale(d))
+            .attr('r', 3)
+            .attr('fill', outlierColor)
+            .attr('stroke', '#ffffff')
+            .attr('stroke-width', 1);
+    }
+    
+    const labels = [
+        { value: whiskerMin, label: 'Min', offset: -15 },
+        { value: q1, label: 'Q1', offset: -15 },
+        { value: median, label: 'Median', offset: -15 },
+        { value: q3, label: 'Q3', offset: -15 },
+        { value: whiskerMax, label: 'Max', offset: -15 }
+    ];
+    
+    chart.selectAll('.value-label')
+        .data(labels)
+        .join('text')
+        .attr('class', 'value-label')
+        .attr('x', boxX + boxWidth + 10)
+        .attr('y', d => yScale(d.value))
+        .attr('text-anchor', 'start')
+        .attr('font-size', '11px')
+        .attr('font-weight', '600')
+        .attr('fill', textColor)
+        .text(d => `${d.label}: ${formatIncome(d.value)}`);
+    
+    chart.append('text')
+        .attr('x', boxX + boxWidth / 2)
+        .attr('y', innerHeight + 30)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '12px')
+        .attr('font-weight', '500')
+        .attr('fill', textColor)
+        .text(`Sample Size: ${metrics.sampleSize.toLocaleString()}`);
+    
+    const yAxis = chart.append('g')
+        .call(d3.axisLeft(yScale)
+            .ticks(6)
+            .tickSize(0)
+            .tickPadding(10)
+            .tickFormat(d => formatIncome(d)));
+    
+    yAxis.selectAll('text')
+        .attr('font-size', '11px')
+        .attr('fill', textColor);
+    
+    yAxis.select('.domain')
+        .attr('stroke', gridColor);
+    
+    chart.append('text')
+        .attr('x', innerWidth / 2)
+        .attr('y', -10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '14px')
+        .attr('font-weight', '600')
+        .attr('fill', textColor)
+        .text(`${metrics.name} Income Distribution`);
+}
+
+function renderTrendChart(metrics) {
+    if (!metrics.recentTrend) return;
+    
+    const lineColor = '#10b981';
+    const dotColor = '#34d399';
+    const areaColor = '#10b981';
+    const textColor = '#e5e7eb';
+    const gridColor = '#374151';
+    
+    const width = 380;
+    const height = 280;
+    const margin = { top: 30, right: 30, bottom: 50, left: 70 };
+    
+    const svg = d3.select(elements.chartTrend)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+    
+    const chart = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+    
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    
     const xScale = d3.scaleBand()
         .domain(metrics.recentTrend.map(d => d.year))
         .range([0, innerWidth])
@@ -489,7 +876,6 @@ function renderTrendChart(metrics) {
         .domain([0, Math.max(...metrics.recentTrend.map(d => d.gdp)) * 1.15])
         .range([innerHeight, 0]);
     
-    // Add horizontal grid lines first (behind everything)
     chart.selectAll('.grid-line')
         .data(yScale.ticks(5))
         .join('line')
@@ -502,7 +888,6 @@ function renderTrendChart(metrics) {
         .attr('stroke-width', 1)
         .attr('opacity', 0.3);
     
-    // Add area under the line
     const area = d3.area()
         .x(d => xScale(d.year) + xScale.bandwidth() / 2)
         .y0(innerHeight)
@@ -515,7 +900,6 @@ function renderTrendChart(metrics) {
         .attr('opacity', 0.1)
         .attr('d', area);
     
-    // Draw line
     const line = d3.line()
         .x(d => xScale(d.year) + xScale.bandwidth() / 2)
         .y(d => yScale(d.gdp))
@@ -528,7 +912,6 @@ function renderTrendChart(metrics) {
         .attr('stroke-width', 3)
         .attr('d', line);
     
-    // Add dots with glow effect
     chart.selectAll('.dot')
         .data(metrics.recentTrend)
         .join('circle')
@@ -541,7 +924,6 @@ function renderTrendChart(metrics) {
         .attr('stroke-width', 2)
         .style('filter', 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.5))');
     
-    // Add value labels above dots
     chart.selectAll('.value-label')
         .data(metrics.recentTrend)
         .join('text')
@@ -557,7 +939,6 @@ function renderTrendChart(metrics) {
             return `$${d.gdp.toFixed(0)}M`;
         });
     
-    // X axis
     const xAxis = chart.append('g')
         .attr('transform', `translate(0,${innerHeight})`)
         .call(d3.axisBottom(xScale)
@@ -572,7 +953,6 @@ function renderTrendChart(metrics) {
     xAxis.select('.domain')
         .attr('stroke', gridColor);
     
-    // Y axis
     const yAxis = chart.append('g')
         .call(d3.axisLeft(yScale)
             .ticks(5)
@@ -595,16 +975,14 @@ function renderTrendChart(metrics) {
 function renderComparisonChart(metrics) {
     if (!metrics.comparisonData) return;
     
-    // Color scheme
-    const highlightColor = '#00d9ff'; // Cyan for selected province
+    const highlightColor = '#00d9ff';
     const textColor = '#e5e7eb';
     const gridColor = '#374151';
     
     const width = 380;
-    const height = 400; // Increased height for all provinces
+    const height = 400;
     const margin = { top: 30, right: 20, bottom: 60, left: 70 };
     
-    // Function to abbreviate province names
     const abbreviateProvince = (name) => {
         const abbrevMap = {
             'Alberta': 'AB',
@@ -638,7 +1016,6 @@ function renderComparisonChart(metrics) {
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
     
-    // Calculate bar width to fit all 13 provinces
     const barWidth = innerWidth / metrics.comparisonData.length - 4;
     
     const xScale = d3.scaleBand()
@@ -650,7 +1027,6 @@ function renderComparisonChart(metrics) {
         .domain([0, Math.max(...metrics.comparisonData.map(d => d.gdp)) * 1.15])
         .range([innerHeight, 0]);
     
-    // Add horizontal grid lines
     chart.selectAll('.grid-line')
         .data(yScale.ticks(6))
         .join('line')
@@ -663,13 +1039,11 @@ function renderComparisonChart(metrics) {
         .attr('stroke-width', 1)
         .attr('opacity', 0.3);
     
-    // Determine if province is the selected one
     const isSelected = (provinceName) => {
         return provinceName === metrics.name || 
                provinceName === (metrics.name + ' & Labrador').replace('Newfoundland', 'Newfoundland and Labrador');
     };
     
-    // Draw bars with different colors
     chart.selectAll('.bar')
         .data(metrics.comparisonData)
         .join('rect')
@@ -679,7 +1053,6 @@ function renderComparisonChart(metrics) {
         .attr('width', xScale.bandwidth())
         .attr('height', d => innerHeight - yScale(d.gdp))
         .attr('fill', d => {
-            // Selected province gets highlight color, others get GDP-based color
             if (isSelected(d.province)) {
                 return highlightColor;
             }
@@ -707,7 +1080,6 @@ function renderComparisonChart(metrics) {
                 .attr('opacity', isSelected(d.province) ? 1 : 0.7);
         });
     
-    // Add value labels on top of bars (only for larger bars to avoid clutter)
     chart.selectAll('.value-label')
         .data(metrics.comparisonData.filter(d => d.gdp > 50000 || isSelected(d.province)))
         .join('text')
@@ -723,7 +1095,6 @@ function renderComparisonChart(metrics) {
             return `$${d.gdp.toFixed(0)}M`;
         });
     
-    // X axis with abbreviated names
     const xAxis = chart.append('g')
         .attr('transform', `translate(0,${innerHeight})`)
         .call(d3.axisBottom(xScale)
@@ -739,7 +1110,6 @@ function renderComparisonChart(metrics) {
     xAxis.select('.domain')
         .attr('stroke', gridColor);
     
-    // Y axis
     const yAxis = chart.append('g')
         .call(d3.axisLeft(yScale)
             .ticks(6)
@@ -750,6 +1120,154 @@ function renderComparisonChart(metrics) {
                 if (d === 0) return '$0';
                 return `$${d}M`;
             }));
+    
+    yAxis.selectAll('text')
+        .attr('font-size', '11px')
+        .attr('fill', textColor);
+    
+    yAxis.select('.domain')
+        .attr('stroke', gridColor);
+}
+
+function renderIncomeComparisonChart(metrics) {
+    if (!metrics.comparisonData) return;
+    
+    const highlightColor = '#00d9ff';
+    const textColor = '#e5e7eb';
+    const gridColor = '#374151';
+    
+    const width = 380;
+    const height = 400;
+    const margin = { top: 30, right: 20, bottom: 60, left: 70 };
+    
+    const abbreviateProvince = (name) => {
+        const abbrevMap = {
+            'Alberta': 'AB',
+            'British Columbia': 'BC',
+            'Manitoba': 'MB',
+            'New Brunswick': 'NB',
+            'Newfoundland & Labrador': 'NL',
+            'Newfoundland and Labrador': 'NL',
+            'Northwest Territories': 'NT',
+            'Nova Scotia': 'NS',
+            'Nunavut': 'NU',
+            'Ontario': 'ON',
+            'Prince Edward Island': 'PE',
+            'Quebec': 'QC',
+            'Saskatchewan': 'SK',
+            'Yukon': 'YT',
+            'Yukon Territory': 'YT'
+        };
+        return abbrevMap[name] || name.substring(0, 2).toUpperCase();
+    };
+    
+    const svg = d3.select(elements.chartComparison)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+    
+    const chart = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+    
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    
+    const xScale = d3.scaleBand()
+        .domain(metrics.comparisonData.map(d => d.province))
+        .range([0, innerWidth])
+        .padding(0.15);
+    
+    const yScale = d3.scaleLinear()
+        .domain([0, Math.max(...metrics.comparisonData.map(d => d.income || 0)) * 1.15])
+        .range([innerHeight, 0]);
+    
+    chart.selectAll('.grid-line')
+        .data(yScale.ticks(6))
+        .join('line')
+        .attr('class', 'grid-line')
+        .attr('x1', 0)
+        .attr('x2', innerWidth)
+        .attr('y1', d => yScale(d))
+        .attr('y2', d => yScale(d))
+        .attr('stroke', gridColor)
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.3);
+    
+    const isSelected = (provinceName) => {
+        return provinceName === metrics.name || 
+               provinceName === (metrics.name + ' & Labrador').replace('Newfoundland', 'Newfoundland and Labrador');
+    };
+    
+    chart.selectAll('.bar')
+        .data(metrics.comparisonData)
+        .join('rect')
+        .attr('class', 'bar')
+        .attr('x', d => xScale(d.province))
+        .attr('y', d => yScale(d.income))
+        .attr('width', xScale.bandwidth())
+        .attr('height', d => innerHeight - yScale(d.income))
+        .attr('fill', d => {
+            if (isSelected(d.province)) {
+                return highlightColor;
+            }
+            return d.income ? getIncomeColor(d.income) : '#666666';
+        })
+        .attr('rx', 3)
+        .attr('ry', 3)
+        .style('filter', d => {
+            if (isSelected(d.province)) {
+                return 'drop-shadow(0 0 8px rgba(0, 217, 255, 0.6))';
+            }
+            return 'none';
+        })
+        .attr('opacity', d => isSelected(d.province) ? 1 : 0.7)
+        .on('mouseenter', function(event, d) {
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('opacity', 1);
+        })
+        .on('mouseleave', function(event, d) {
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('opacity', isSelected(d.province) ? 1 : 0.7);
+        });
+    
+    chart.selectAll('.value-label')
+        .data(metrics.comparisonData.filter(d => (d.income && d.income > 30000) || isSelected(d.province)))
+        .join('text')
+        .attr('class', 'value-label')
+        .attr('x', d => xScale(d.province) + xScale.bandwidth() / 2)
+        .attr('y', d => yScale(d.income || 0) - 5)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '9px')
+        .attr('font-weight', '700')
+        .attr('fill', d => isSelected(d.province) ? highlightColor : textColor)
+        .text(d => d.income ? formatIncome(d.income) : 'N/A');
+    
+    const xAxis = chart.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale)
+            .tickFormat(d => abbreviateProvince(d))
+            .tickSize(0)
+            .tickPadding(8));
+    
+    xAxis.selectAll('text')
+        .attr('font-size', '11px')
+        .attr('font-weight', d => isSelected(d) ? '700' : '500')
+        .attr('fill', d => isSelected(d) ? highlightColor : textColor);
+    
+    xAxis.select('.domain')
+        .attr('stroke', gridColor);
+    
+    const yAxis = chart.append('g')
+        .call(d3.axisLeft(yScale)
+            .ticks(6)
+            .tickSize(0)
+            .tickPadding(10)
+            .tickFormat(d => formatIncome(d)));
     
     yAxis.selectAll('text')
         .attr('font-size', '11px')
@@ -853,7 +1371,6 @@ function closeProvincePanel() {
 function updateMapMarkersForYear(year) {
     if (!elements.map) return;
     
-    // Update province markers with unemployment data for the selected year
     const provinceFeatures = CANADIAN_PROVINCES_UNEMPLOYMENT.map((province, idx) => {
         const historicalData = getHistoricalData(province.id);
         const yearData = historicalData.find(d => d.year === year);
@@ -894,6 +1411,11 @@ function toggleLegend() {
 }
 
 function setupEventListeners() {
+    elements.dataTypeSelect?.addEventListener('change', (e) => {
+        const newDataType = e.target.value;
+        switchDataType(newDataType);
+    });
+    
     elements.btnResetView?.addEventListener('click', () => {
         if (elements.map) {
             elements.map.easeTo({

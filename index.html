@@ -15,18 +15,21 @@
             
             <div class="map-overlay top-left">
                 <div class="logo">
-                    <h1>🍁 Canada GDP Explorer</h1>
-                    <p class="subtitle">Provincial GDP data (2021-2023)</p>
+                    <h1>🍁 Canada Data Explorer</h1>
+                    <p class="subtitle">Provincial GDP & Income data</p>
                 </div>
             </div>
 
-            <div id="onboarding-tooltip" class="onboarding-tooltip">
-                <p><strong>👋 Welcome!</strong> Click any province to explore GDP data</p>
-                <button id="dismiss-tooltip" class="btn-small">Got it</button>
-            </div>
 
             <div class="map-overlay top-right">
                 <div class="controls-group">
+                    <div class="data-type-selector">
+                        <label for="data-type-select">Data Type:</label>
+                        <select id="data-type-select" class="data-type-select">
+                            <option value="gdp">GDP Data</option>
+                            <option value="income">Income Data</option>
+                        </select>
+                    </div>
                     <button id="btn-reset-view" class="btn-control" title="Reset to global view">
                         🌍 Global View
                     </button>
@@ -40,8 +43,8 @@
             </div>
 
             <div id="legend-panel" class="legend-panel hidden">
-                <h3>GDP Color Legend</h3>
-                <div class="legend-items">
+                <h3 id="legend-title">GDP Color Legend</h3>
+                <div class="legend-items" id="legend-items">
                     <div class="legend-item">
                         <span class="legend-marker" style="background-color: #00d9ff;"></span>
                         <span>Very High ($300B+)</span>
@@ -64,7 +67,7 @@
                     </div>
                 </div>
                 <div class="legend-note">
-                    <small>Province colors based on GDP</small>
+                    <small id="legend-note">Province colors based on GDP</small>
                 </div>
             </div>
 
@@ -102,7 +105,7 @@
 
             <div class="tabs">
                 <button class="tab-btn active" data-tab="overview">📈 Overview</button>
-                <button class="tab-btn" data-tab="trend">📊 GDP Trend</button>
+                <button class="tab-btn" data-tab="trend" id="tab-trend-btn">📊 GDP Trend</button>
                 <button class="tab-btn" data-tab="comparison">🔍 Comparison</button>
             </div>
 
@@ -110,19 +113,19 @@
                 <div id="tab-overview" class="tab-pane active">
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <span class="stat-label">GDP 2023</span>
+                            <span class="stat-label" id="stat-label-1">GDP 2023</span>
                             <span class="stat-value" id="stat-current-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">GDP 2022</span>
+                            <span class="stat-label" id="stat-label-2">GDP 2022</span>
                             <span class="stat-value" id="stat-avg-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">GDP 2021</span>
+                            <span class="stat-label" id="stat-label-3">GDP 2021</span>
                             <span class="stat-value" id="stat-peak-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Growth 2022-23</span>
+                            <span class="stat-label" id="stat-label-4">Growth 2022-23</span>
                             <span class="stat-value" id="stat-peak-year">—</span>
                         </div>
                     </div>
@@ -130,15 +133,15 @@
                 </div>
 
                 <div id="tab-trend" class="tab-pane">
-                    <h4>GDP Trend (2021-2023)</h4>
+                    <h4 id="trend-title">GDP Trend (2021-2023)</h4>
                     <div id="chart-trend" class="chart-container"></div>
-                    <p class="chart-note">3-year GDP trend</p>
+                    <p class="chart-note" id="trend-note">3-year GDP trend</p>
                 </div>
 
                 <div id="tab-comparison" class="tab-pane">
-                    <h4>Provincial GDP Comparison</h4>
+                    <h4 id="comparison-title">Provincial GDP Comparison</h4>
                     <div id="chart-comparison" class="chart-container"></div>
-                    <p class="chart-note">GDP by province (2023)</p>
+                    <p class="chart-note" id="comparison-note">GDP by province (2023)</p>
                 </div>
             </div>
 
