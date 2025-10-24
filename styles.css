@@ -105,7 +105,7 @@ html, body {
 
 .map-overlay {
     position: absolute;
-    z-index: 10;
+    z-index: 100;
     padding: 1rem;
     pointer-events: none;
 }
@@ -270,6 +270,7 @@ button:disabled {
     font-size: 0.875rem;
     box-shadow: var(--shadow-md);
     border: none;
+    transition: all var(--transition-fast);
 }
 
 .btn-primary:hover {
@@ -312,21 +313,40 @@ button:disabled {
     color: var(--text-primary);
 }
 
-.btn-exit-street-view {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    z-index: 100;
-    padding: 0.75rem 1rem;
-    background: rgba(0, 0, 0, 0.7);
+.btn-toggle-sidebar {
+    position: fixed;
+    top: 50%;
+    right: 440px;
+    transform: translateY(-50%);
+    z-index: 200;
+    width: 3rem;
+    height: 3rem;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.85);
     color: white;
-    border-radius: var(--radius-md);
-    font-weight: 600;
-    box-shadow: var(--shadow-lg);
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all var(--transition-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.btn-exit-street-view:hover {
-    background: rgba(0, 0, 0, 0.9);
+.sidebar-hidden ~ * .btn-toggle-sidebar,
+.data-panel.sidebar-hidden ~ .street-view-overlay .btn-toggle-sidebar {
+    right: 20px;
+}
+
+.btn-toggle-sidebar:hover {
+    background: rgba(99, 102, 241, 0.9);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+    border-color: rgba(255, 255, 255, 0.4);
 }
 
 .btn-street-view-floating {
@@ -363,6 +383,8 @@ button:disabled {
     border: 1px solid rgba(255, 255, 255, 0.5);
     max-width: 320px;
     animation: slideIn var(--transition-base) ease-out;
+    position: relative;
+    z-index: 100;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -460,6 +482,15 @@ button:disabled {
     box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
     animation: slideInRight var(--transition-base) ease-out;
     overflow: hidden;
+    z-index: 150;
+    position: fixed;
+    right: 0;
+    top: 0;
+    transition: transform var(--transition-base);
+}
+
+.data-panel.sidebar-hidden {
+    transform: translateX(100%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -690,7 +721,7 @@ button:disabled {
     width: 100%;
     height: 100%;
     background: #000;
-    z-index: 200;
+    z-index: 5;
     display: flex;
     flex-direction: column;
     animation: fadeIn var(--transition-fast);
@@ -713,7 +744,7 @@ button:disabled {
     border-radius: var(--radius-lg);
     font-size: 0.875rem;
     backdrop-filter: blur(8px);
-    z-index: 100;
+    z-index: 200;
 }
 
 .hidden {
@@ -839,6 +870,7 @@ button:disabled {
     background: var(--bg-tertiary);
     outline: none;
     -webkit-appearance: none;
+    appearance: none;
     margin-bottom: 0.5rem;
 }
 

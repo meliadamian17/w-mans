@@ -17,6 +17,8 @@ import {
     getDataStatus,
     setCurrentDataType,
     getCurrentDataType,
+    getCitiesForProvince,
+    getCityById,
 } from './data.js';
 
 const PROVINCE_POPULATIONS = {
@@ -39,9 +41,12 @@ const MAPILLARY_ACCESS_TOKEN = 'MLY|25924883943764997|4ac03280f19bbd17e1e57bbef9
 
 const appState = {
     selectedProvince: null,
+    selectedCity: null,
     streetViewOpen: false,
     mapLoaded: false,
     legendOpen: false,
+    mapillaryViewer: null,
+    sidebarVisible: true,
 };
 
 const elements = {
@@ -57,7 +62,7 @@ const elements = {
     btnStreetView: document.getElementById('btn-street-view-right-panel'),
     btnStreetViewProvincePanel: document.getElementById('btn-street-view-province-panel'),
     btnStreetViewFloating: document.getElementById('btn-street-view-floating'),
-    btnExitStreetView: document.getElementById('btn-exit-street-view'),
+    btnToggleSidebar: document.getElementById('btn-toggle-sidebar'),
     btnDismissTooltip: document.getElementById('dismiss-tooltip'),
     
     dataPanel: document.getElementById('data-panel'),
@@ -164,6 +169,7 @@ async function initMap() {
                 }
                 
                 await addProvincePolygons(map);
+                addCityMarkers(map);
                 
                 appState.mapLoaded = true;
                 resolve();
@@ -404,6 +410,153 @@ async function addProvincePolygons(map) {
     }
 }
 
+function addCityMarkers(map) {
+    map.addSource('city-markers', {
+        type: 'geojson',
+        data: {
+            type: 'FeatureCollection',
+            features: []
+        }
+    });
+    
+    map.addLayer({
+        id: 'city-circles',
+        type: 'circle',
+        source: 'city-markers',
+        paint: {
+            'circle-radius': 6,
+            'circle-color': '#00d9ff',
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+            'circle-opacity': 0.9
+        }
+    });
+    
+    let hoveredCityId = null;
+    
+    map.on('mouseenter', 'city-circles', () => {
+        map.getCanvas().style.cursor = 'pointer';
+    });
+    
+    map.on('mouseleave', 'city-circles', () => {
+        map.getCanvas().style.cursor = '';
+        if (hoveredCityId !== null) {
+            map.setFeatureState(
+                { source: 'city-markers', id: hoveredCityId },
+                { hover: false }
+            );
+        }
+        hoveredCityId = null;
+        
+        const tooltip = document.getElementById('map-tooltip');
+        if (tooltip) {
+            tooltip.style.display = 'none';
+        }
+    });
+    
+    map.on('mousemove', 'city-circles', (e) => {
+        if (e.features.length > 0) {
+            if (hoveredCityId !== null) {
+                map.setFeatureState(
+                    { source: 'city-markers', id: hoveredCityId },
+                    { hover: false }
+                );
+            }
+            hoveredCityId = e.features[0].id;
+            map.setFeatureState(
+                { source: 'city-markers', id: hoveredCityId },
+                { hover: true }
+            );
+            
+            const feature = e.features[0];
+            const cityName = feature.properties.name;
+            const gdp = feature.properties.gdp;
+            const population = feature.properties.population;
+            
+            let tooltip = document.getElementById('map-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'map-tooltip';
+                tooltip.style.cssText = `
+                    position: absolute;
+                    background: rgba(0, 0, 0, 0.9);
+                    color: white;
+                    padding: 10px 14px;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    pointer-events: none;
+                    z-index: 1000;
+                    backdrop-filter: blur(10px);
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.2);
+                `;
+                document.body.appendChild(tooltip);
+            }
+            
+            tooltip.innerHTML = `
+                <strong>${cityName}</strong><br>
+                GDP: $${(gdp / 1000).toFixed(1)}B<br>
+                Population: ${population.toLocaleString()}
+            `;
+            tooltip.style.left = e.point.x + 15 + 'px';
+            tooltip.style.top = e.point.y - 10 + 'px';
+            tooltip.style.display = 'block';
+        }
+    });
+    
+    map.on('click', 'city-circles', (e) => {
+        if (e.features.length > 0) {
+            const feature = e.features[0];
+            const cityId = feature.properties.id;
+            const provinceId = feature.properties.provinceId;
+            
+            console.log(`🏙️ Clicked on city: ${cityId} in province: ${provinceId}`);
+            selectCity(provinceId, cityId);
+        }
+    });
+}
+
+function showCitiesForProvince(provinceId) {
+    const cities = getCitiesForProvince(provinceId);
+    
+    const features = cities.map((city, idx) => ({
+        type: 'Feature',
+        id: idx,
+        geometry: {
+            type: 'Point',
+            coordinates: [city.lng, city.lat]
+        },
+        properties: {
+            id: city.id,
+            name: city.name,
+            provinceId: provinceId,
+            gdp: city.gdp,
+            population: city.population,
+            hasStreetView: city.hasStreetView
+        }
+    }));
+    
+    const source = elements.map.getSource('city-markers');
+    if (source) {
+        source.setData({
+            type: 'FeatureCollection',
+            features: features
+        });
+    }
+    
+    console.log(`✅ Showing ${cities.length} cities for ${provinceId}`);
+}
+
+function hideCities() {
+    const source = elements.map.getSource('city-markers');
+    if (source) {
+        source.setData({
+            type: 'FeatureCollection',
+            features: []
+        });
+    }
+}
+
 function selectProvince(provinceId, bounds = null) {
     console.log('🎯 selectProvince called with ID:', provinceId);
     
@@ -417,12 +570,16 @@ function selectProvince(provinceId, bounds = null) {
     console.log('✅ Province found:', province.name);
     
     appState.selectedProvince = provinceId;
+    appState.selectedCity = null;
     
     console.log('📊 Updating province info panel...');
     updateProvinceInfoPanel(province);
     
     console.log('📈 Updating data panel...');
     updateDataPanel(provinceId);
+    
+    console.log('🏙️ Showing cities for province...');
+    showCitiesForProvince(provinceId);
     
     console.log('👁️ Showing panels...');
     if (elements.provinceInfoPanel) {
@@ -438,6 +595,8 @@ function selectProvince(provinceId, bounds = null) {
     } else {
         console.error('❌ Data panel element not found');
     }
+    
+    updateStreetViewButton();
     
     if (elements.map) {
         if (bounds) {
@@ -467,6 +626,443 @@ function selectProvince(provinceId, bounds = null) {
         }
     } else {
         console.error('❌ Map element not found');
+    }
+}
+
+function selectCity(provinceId, cityId) {
+    console.log('🏙️ selectCity called:', cityId, 'in province:', provinceId);
+    
+    const city = getCityById(provinceId, cityId);
+    if (!city) {
+        console.error('❌ City not found:', cityId);
+        return;
+    }
+    
+    console.log('✅ City found:', city.name);
+    
+    appState.selectedCity = city;
+    appState.selectedProvince = provinceId;
+    
+    updateCityInfoPanel(city);
+    updateCityDataPanel(city, provinceId);
+    
+    if (elements.provinceInfoPanel) {
+        elements.provinceInfoPanel.classList.remove('hidden');
+    }
+    
+    if (elements.dataPanel) {
+        elements.dataPanel.classList.remove('hidden');
+    }
+    
+    updateStreetViewButton();
+    
+    if (elements.map) {
+        elements.map.easeTo({
+            center: [city.lng, city.lat],
+            zoom: 11,
+            pitch: 45,
+            bearing: 0,
+            duration: 1000,
+            essential: true,
+        });
+    }
+}
+
+function updateCityInfoPanel(city) {
+    elements.provinceName.textContent = city.name;
+    elements.provincePopulation.textContent = `Population: ${formatNumber(city.population)}`;
+    elements.provinceCoordinates.textContent = `Coordinates: ${city.lat.toFixed(4)}°, ${city.lng.toFixed(4)}°`;
+}
+
+function updateCityDataPanel(city, provinceId) {
+    const dataType = getCurrentDataType();
+    
+    // Update panel title
+    elements.panelProvinceTitle.textContent = `${city.name} Economic Data`;
+    
+    // Switch to overview tab
+    elements.tabButtons.forEach(btn => btn.classList.remove('active'));
+    elements.tabPanes.forEach(pane => pane.classList.remove('active'));
+    
+    const overviewTabBtn = document.querySelector('[data-tab="overview"]');
+    const overviewPane = document.getElementById('tab-overview');
+    if (overviewTabBtn) overviewTabBtn.classList.add('active');
+    if (overviewPane) overviewPane.classList.add('active');
+    
+    // Update stat labels for city data
+    elements.statLabel1.textContent = 'City GDP';
+    elements.statLabel2.textContent = 'Population';
+    elements.statLabel3.textContent = 'GDP per Capita';
+    elements.statLabel4.textContent = 'Province';
+    
+    const gdpInBillions = city.gdp / 1000;
+    const gdpPerCapita = (city.gdp * 1_000_000) / city.population;
+    const province = getProvinceById(provinceId);
+    
+    elements.statCurrentRate.textContent = `$${gdpInBillions.toFixed(2)}B`;
+    elements.statAvgRate.textContent = formatNumber(city.population);
+    elements.statPeakRate.textContent = `$${(gdpPerCapita / 1000).toFixed(1)}k`;
+    elements.statPeakYear.textContent = province ? province.name : provinceId.toUpperCase();
+    
+    // Clear existing charts
+    d3.select(elements.chartTrend).selectAll('*').remove();
+    d3.select(elements.chartComparison).selectAll('*').remove();
+    d3.select(elements.chartOverview).selectAll('*').remove();
+    
+    // Render city overview chart
+    renderCityOverviewChart(city, provinceId);
+    
+    // Render city trend/details chart
+    renderCityDetailsChart(city, provinceId);
+    
+    // Render city comparison chart
+    renderCityComparisonChart(city, provinceId);
+    
+    // Update tab labels for city view
+    const trendTabBtn = document.getElementById('tab-trend-btn');
+    if (trendTabBtn) {
+        trendTabBtn.textContent = '📊 City Details';
+    }
+    
+    elements.trendTitle.textContent = 'City Economic Overview';
+    elements.comparisonTitle.textContent = 'Cities in ' + (province ? province.name : provinceId.toUpperCase());
+    elements.comparisonNote.textContent = 'GDP comparison of major cities';
+}
+
+function renderCityDetailsChart(city, provinceId) {
+    const province = getProvinceById(provinceId);
+    if (!province) return;
+    
+    const textColor = '#e5e7eb';
+    const primaryColor = '#00d9ff';
+    const secondaryColor = '#7928ca';
+    const gridColor = '#374151';
+    
+    const width = 380;
+    const height = 280;
+    const margin = { top: 40, right: 30, bottom: 30, left: 30 };
+    
+    const svg = d3.select(elements.chartTrend)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+    
+    const chart = svg.append('g')
+        .attr('transform', `translate(${width / 2},${height / 2})`);
+    
+    // Calculate metrics
+    const cityShare = (city.gdp / province.gdp2023) * 100;
+    const gdpPerCapita = (city.gdp * 1_000_000) / city.population;
+    const provinceGDPPerCapita = (province.gdp2023 * 1_000_000) / province.population;
+    const perCapitaRatio = (gdpPerCapita / provinceGDPPerCapita) * 100;
+    
+    // Draw circular progress for city's contribution to province
+    const radius = 80;
+    const thickness = 20;
+    
+    // Background circle
+    chart.append('circle')
+        .attr('r', radius)
+        .attr('fill', 'none')
+        .attr('stroke', gridColor)
+        .attr('stroke-width', thickness);
+    
+    // Progress arc
+    const arc = d3.arc()
+        .innerRadius(radius - thickness / 2)
+        .outerRadius(radius + thickness / 2)
+        .startAngle(0)
+        .endAngle((cityShare / 100) * 2 * Math.PI);
+    
+    chart.append('path')
+        .attr('d', arc)
+        .attr('fill', primaryColor)
+        .style('filter', 'drop-shadow(0 0 8px rgba(0, 217, 255, 0.6))');
+    
+    // Center text
+    chart.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('y', -10)
+        .attr('font-size', '32px')
+        .attr('font-weight', '700')
+        .attr('fill', primaryColor)
+        .text(`${cityShare.toFixed(1)}%`);
+    
+    chart.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('y', 15)
+        .attr('font-size', '12px')
+        .attr('font-weight', '500')
+        .attr('fill', textColor)
+        .text('of Province GDP');
+    
+    // Title
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', 20)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '14px')
+        .attr('font-weight', '600')
+        .attr('fill', textColor)
+        .text(`${city.name}'s Economic Contribution`);
+    
+    // Additional metrics at bottom
+    const bottomY = height - 20;
+    
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', bottomY)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '11px')
+        .attr('font-weight', '500')
+        .attr('fill', textColor)
+        .text(`GDP per Capita: $${(gdpPerCapita / 1000).toFixed(0)}k (${perCapitaRatio.toFixed(0)}% of province avg)`);
+}
+
+function renderCityOverviewChart(city, provinceId) {
+    const province = getProvinceById(provinceId);
+    if (!province) return;
+    
+    const textColor = '#e5e7eb';
+    const primaryColor = '#00d9ff';
+    const secondaryColor = '#7928ca';
+    
+    const width = 380;
+    const height = 280;
+    const margin = { top: 30, right: 30, bottom: 30, left: 30 };
+    
+    const svg = d3.select(elements.chartOverview)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+    
+    const chart = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+    
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    
+    // Calculate metrics
+    const cityGDP = city.gdp / 1000; // in billions
+    const provinceGDP = province.gdp2023 / 1000; // in billions
+    const cityShare = (city.gdp / province.gdp2023) * 100;
+    const gdpPerCapita = (city.gdp * 1_000_000) / city.population;
+    
+    // Create sections for the overview
+    const sections = [
+        { label: 'City GDP', value: `$${cityGDP.toFixed(1)}B`, y: 40 },
+        { label: 'Province Share', value: `${cityShare.toFixed(1)}%`, y: 90 },
+        { label: 'GDP per Capita', value: `$${(gdpPerCapita / 1000).toFixed(0)}k`, y: 140 },
+        { label: 'Population', value: formatNumber(city.population), y: 190 }
+    ];
+    
+    // Title
+    chart.append('text')
+        .attr('x', innerWidth / 2)
+        .attr('y', 0)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '16px')
+        .attr('font-weight', '700')
+        .attr('fill', primaryColor)
+        .text(`${city.name} Economic Overview`);
+    
+    // Draw metrics
+    sections.forEach(section => {
+        const group = chart.append('g')
+            .attr('transform', `translate(0, ${section.y})`);
+        
+        // Background bar
+        group.append('rect')
+            .attr('x', 0)
+            .attr('y', -20)
+            .attr('width', innerWidth)
+            .attr('height', 40)
+            .attr('fill', 'rgba(100, 100, 100, 0.1)')
+            .attr('rx', 6);
+        
+        // Label
+        group.append('text')
+            .attr('x', 15)
+            .attr('y', 0)
+            .attr('text-anchor', 'start')
+            .attr('font-size', '13px')
+            .attr('font-weight', '500')
+            .attr('fill', textColor)
+            .attr('alignment-baseline', 'middle')
+            .text(section.label);
+        
+        // Value
+        group.append('text')
+            .attr('x', innerWidth - 15)
+            .attr('y', 0)
+            .attr('text-anchor', 'end')
+            .attr('font-size', '15px')
+            .attr('font-weight', '700')
+            .attr('fill', primaryColor)
+            .attr('alignment-baseline', 'middle')
+            .text(section.value);
+    });
+}
+
+function renderCityComparisonChart(selectedCity, provinceId) {
+    const cities = getCitiesForProvince(provinceId);
+    
+    if (!cities || cities.length === 0) return;
+    
+    const highlightColor = '#00d9ff';
+    const textColor = '#e5e7eb';
+    const gridColor = '#374151';
+    
+    const width = 380;
+    const height = 400;
+    const margin = { top: 30, right: 20, bottom: 80, left: 70 };
+    
+    const svg = d3.select(elements.chartComparison)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .style('background', 'transparent');
+    
+    const chart = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+    
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    
+    const sortedCities = [...cities].sort((a, b) => b.gdp - a.gdp);
+    
+    const xScale = d3.scaleBand()
+        .domain(sortedCities.map(c => c.name))
+        .range([0, innerWidth])
+        .padding(0.2);
+    
+    const yScale = d3.scaleLinear()
+        .domain([0, Math.max(...sortedCities.map(c => c.gdp)) * 1.15])
+        .range([innerHeight, 0]);
+    
+    chart.selectAll('.grid-line')
+        .data(yScale.ticks(6))
+        .join('line')
+        .attr('class', 'grid-line')
+        .attr('x1', 0)
+        .attr('x2', innerWidth)
+        .attr('y1', d => yScale(d))
+        .attr('y2', d => yScale(d))
+        .attr('stroke', gridColor)
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.3);
+    
+    const isSelected = (cityName) => cityName === selectedCity.name;
+    
+    chart.selectAll('.bar')
+        .data(sortedCities)
+        .join('rect')
+        .attr('class', 'bar')
+        .attr('x', d => xScale(d.name))
+        .attr('y', d => yScale(d.gdp))
+        .attr('width', xScale.bandwidth())
+        .attr('height', d => innerHeight - yScale(d.gdp))
+        .attr('fill', d => isSelected(d.name) ? highlightColor : '#7928ca')
+        .attr('rx', 3)
+        .attr('ry', 3)
+        .style('filter', d => isSelected(d.name) ? 
+            'drop-shadow(0 0 8px rgba(0, 217, 255, 0.6))' : 'none')
+        .attr('opacity', d => isSelected(d.name) ? 1 : 0.7);
+    
+    chart.selectAll('.value-label')
+        .data(sortedCities)
+        .join('text')
+        .attr('class', 'value-label')
+        .attr('x', d => xScale(d.name) + xScale.bandwidth() / 2)
+        .attr('y', d => yScale(d.gdp) - 5)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '9px')
+        .attr('font-weight', '700')
+        .attr('fill', d => isSelected(d.name) ? highlightColor : textColor)
+        .text(d => `$${(d.gdp / 1000).toFixed(1)}B`);
+    
+    const xAxis = chart.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale)
+            .tickSize(0)
+            .tickPadding(8));
+    
+    xAxis.selectAll('text')
+        .attr('font-size', '10px')
+        .attr('font-weight', d => isSelected(d) ? '700' : '500')
+        .attr('fill', d => isSelected(d) ? highlightColor : textColor)
+        .attr('transform', 'rotate(-45)')
+        .style('text-anchor', 'end');
+    
+    xAxis.select('.domain')
+        .attr('stroke', gridColor);
+    
+    const yAxis = chart.append('g')
+        .call(d3.axisLeft(yScale)
+            .ticks(6)
+            .tickSize(0)
+            .tickPadding(10)
+            .tickFormat(d => `$${(d / 1000).toFixed(0)}B`));
+    
+    yAxis.selectAll('text')
+        .attr('font-size', '11px')
+        .attr('fill', textColor);
+    
+    yAxis.select('.domain')
+        .attr('stroke', gridColor);
+    
+    chart.append('text')
+        .attr('x', innerWidth / 2)
+        .attr('y', -10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '14px')
+        .attr('font-weight', '600')
+        .attr('fill', textColor)
+        .text('City GDP Comparison');
+}
+
+function updateStreetViewButton() {
+    console.log('🔄 updateStreetViewButton called, streetViewOpen:', appState.streetViewOpen);
+    
+    const btns = [
+        elements.btnStreetView,
+        elements.btnStreetViewProvincePanel,
+        elements.btnStreetViewFloating
+    ];
+    
+    if (appState.streetViewOpen) {
+        // In street view mode - show exit button
+        console.log('Setting buttons to Exit Street View mode (RED)');
+        btns.forEach(btn => {
+            if (btn) {
+                btn.textContent = '✕ Exit Street View';
+                btn.style.setProperty('background', '#ef4444', 'important');
+                btn.style.setProperty('background-image', 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', 'important');
+            }
+        });
+    } else if (appState.selectedCity) {
+        // City selected but not in street view
+        console.log('Setting buttons to Enter Street View mode (BLUE)');
+        btns.forEach(btn => {
+            if (btn) {
+                btn.textContent = appState.selectedCity.hasStreetView ? 
+                    '🌍 Enter Street View' : '🏙️ City View';
+                btn.style.removeProperty('background');
+                btn.style.removeProperty('background-image');
+            }
+        });
+    } else {
+        // Province selected
+        console.log('Setting buttons to Provincial View mode');
+        btns.forEach(btn => {
+            if (btn) {
+                btn.textContent = '🏛️ Provincial View';
+                btn.style.removeProperty('background');
+                btn.style.removeProperty('background-image');
+            }
+        });
     }
 }
 
@@ -1278,22 +1874,31 @@ function renderIncomeComparisonChart(metrics) {
 }
 
 
-function enterStreetView() {
-    const province = getProvinceById(appState.selectedProvince);
-    console.log('🎬 enterStreetView called, province:', province);
+async function enterStreetView() {
+    console.log('🎬 enterStreetView called');
     
-    if (!province) {
-        console.log('❌ Province not found');
+    // If already in street view, exit it
+    if (appState.streetViewOpen) {
+        exitStreetView();
         return;
     }
     
-    appState.streetViewOpen = true;
-    console.log('📸 Opening street view for:', province.name);
-    
-    elements.streetViewContainer.classList.remove('hidden');
-    console.log('✅ Container shown');
-    
-    const canvas = document.getElementById('street-view-canvas');
+    if (appState.selectedCity) {
+        const city = appState.selectedCity;
+        console.log('🏙️ Opening street view for city:', city.name);
+        
+        if (!city.hasStreetView) {
+            showCityViewPlaceholder(city);
+            return;
+        }
+        
+        appState.streetViewOpen = true;
+        elements.streetViewContainer.classList.remove('hidden');
+        
+        // Update button immediately
+        updateStreetViewButton();
+        
+        const canvas = document.getElementById('street-view-canvas');
         canvas.innerHTML = `
             <div style="
                 width: 100%;
@@ -1304,17 +1909,159 @@ function enterStreetView() {
                 flex-direction: column;
                 background: #1a1a2e;
                 color: white;
-                text-align: center;
-                padding: 2rem;
             ">
+                <div class="spinner"></div>
+                <p style="margin-top: 1rem;">Loading street view for ${city.name}...</p>
+            </div>
+        `;
+        
+        try {
+            const imageId = await fetchMapillaryImage(city.lat, city.lng);
+            
+            if (!imageId) {
+                canvas.innerHTML = `
+                    <div style="
+                        width: 100%;
+                        height: 100%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex-direction: column;
+                        background: #1a1a2e;
+                        color: white;
+                        text-align: center;
+                        padding: 2rem;
+                    ">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">📷</div>
+                        <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">No Street View Available</h2>
+                        <p>No street imagery found near ${city.name}</p>
+                        <p style="font-size: 0.9rem; color: #ccc; margin-top: 0.5rem;">Try another city or check back later</p>
+                    </div>
+                `;
+                elements.streetViewLocation.textContent = `Viewing: ${city.name} (No imagery available)`;
+                return;
+            }
+            
+            canvas.innerHTML = '';
+            
+            if (appState.mapillaryViewer) {
+                try {
+                    appState.mapillaryViewer.remove();
+                } catch (e) {
+                    console.warn('Error removing previous viewer:', e);
+                }
+            }
+            
+            appState.mapillaryViewer = new mapillary.Viewer({
+                accessToken: MAPILLARY_ACCESS_TOKEN,
+                container: 'street-view-canvas',
+                imageId: imageId,
+                component: {
+                    cover: false,
+                    keyboard: true,
+                    tag: false,
+                }
+            });
+            
+            elements.streetViewLocation.textContent = `Viewing: ${city.name}, ${appState.selectedProvince.toUpperCase()}`;
+            
+            // Update button to show exit option
+            updateStreetViewButton();
+            
+            console.log('✅ Street view loaded successfully');
+            
+        } catch (error) {
+            console.error('❌ Error loading street view:', error);
+            canvas.innerHTML = `
+                <div style="
+                    width: 100%;
+                    height: 100%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-direction: column;
+                    background: #1a1a2e;
+                    color: white;
+                    text-align: center;
+                    padding: 2rem;
+                ">
+                    <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
+                    <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Error Loading Street View</h2>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        }
+    } else {
+        const province = getProvinceById(appState.selectedProvince);
+        if (!province) {
+            console.log('❌ Province not found');
+            return;
+        }
+        
+        showProvinceViewPlaceholder(province);
+    }
+}
+
+function showCityViewPlaceholder(city) {
+    appState.streetViewOpen = true;
+    elements.streetViewContainer.classList.remove('hidden');
+    
+    const canvas = document.getElementById('street-view-canvas');
+    canvas.innerHTML = `
+        <div style="
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background: #1a1a2e;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+        ">
+            <div style="font-size: 2rem; margin-bottom: 1rem;">🏙️</div>
+            <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">City View</h2>
+            <p>Street view not available for ${city.name}</p>
+            <p style="font-size: 0.9rem; color: #ccc;">City economic data displayed on the sidebar</p>
+        </div>
+    `;
+    
+    elements.streetViewLocation.textContent = `Viewing: ${city.name}`;
+    
+    // Update button to show exit option
+    updateStreetViewButton();
+}
+
+function showProvinceViewPlaceholder(province) {
+    appState.streetViewOpen = true;
+    elements.streetViewContainer.classList.remove('hidden');
+    
+    const canvas = document.getElementById('street-view-canvas');
+    canvas.innerHTML = `
+        <div style="
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background: #1a1a2e;
+            color: white;
+            text-align: center;
+            padding: 2rem;
+        ">
             <div style="font-size: 2rem; margin-bottom: 1rem;">🏛️</div>
             <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Provincial View</h2>
             <p>Street view not available for ${province.name}</p>
             <p style="font-size: 0.9rem; color: #ccc;">Provincial-level data visualization</p>
-            </div>
-        `;
+        </div>
+    `;
     
     elements.streetViewLocation.textContent = `Viewing: ${province.name}`;
+    
+    // Update button to show exit option
+    updateStreetViewButton();
 }
 
 async function fetchMapillaryImage(lat, lng) {
@@ -1337,8 +2084,56 @@ async function fetchMapillaryImage(lat, lng) {
 }
 
 function exitStreetView() {
+    console.log('🚪 Exiting street view...');
+    
     appState.streetViewOpen = false;
     elements.streetViewContainer.classList.add('hidden');
+    
+    if (appState.mapillaryViewer) {
+        try {
+            appState.mapillaryViewer.remove();
+            appState.mapillaryViewer = null;
+        } catch (e) {
+            console.warn('Error removing viewer:', e);
+        }
+    }
+    
+    const canvas = document.getElementById('street-view-canvas');
+    canvas.innerHTML = '';
+    
+    // Make sure sidebar is visible when exiting
+    if (!appState.sidebarVisible) {
+        appState.sidebarVisible = true;
+        elements.dataPanel.classList.remove('sidebar-hidden');
+    }
+    
+    // Update button text back to Enter Street View
+    updateStreetViewButton();
+    
+    // Return to city view if a city is selected
+    if (appState.selectedCity && elements.map) {
+        elements.map.easeTo({
+            center: [appState.selectedCity.lng, appState.selectedCity.lat],
+            zoom: 11,
+            pitch: 45,
+            bearing: 0,
+            duration: 800,
+            essential: true,
+        });
+    } else if (appState.selectedProvince && elements.map) {
+        // Return to province view
+        const province = getProvinceById(appState.selectedProvince);
+        if (province) {
+            elements.map.easeTo({
+                center: province.center,
+                zoom: 5,
+                pitch: 20,
+                bearing: 0,
+                duration: 800,
+                essential: true,
+            });
+        }
+    }
 }
 
 function showLoadingIndicator(show) {
@@ -1350,8 +2145,17 @@ function showLoadingIndicator(show) {
 }
 
 function closeDataPanel() {
+    // If in street view, just hide the sidebar, don't close everything
+    if (appState.streetViewOpen) {
+        toggleSidebar();
+        return;
+    }
+    
     elements.dataPanel.classList.add('hidden');
     appState.selectedProvince = null;
+    appState.selectedCity = null;
+    
+    hideCities();
     
     if (elements.map) {
         elements.map.easeTo({
@@ -1361,6 +2165,26 @@ function closeDataPanel() {
             bearing: 0,
             duration: 1000,
         });
+    }
+}
+
+function toggleSidebar() {
+    appState.sidebarVisible = !appState.sidebarVisible;
+    
+    if (appState.sidebarVisible) {
+        elements.dataPanel.classList.remove('sidebar-hidden');
+        if (elements.btnToggleSidebar) {
+            elements.btnToggleSidebar.innerHTML = '▶';
+            elements.btnToggleSidebar.title = 'Hide sidebar';
+            elements.btnToggleSidebar.style.right = '440px';
+        }
+    } else {
+        elements.dataPanel.classList.add('sidebar-hidden');
+        if (elements.btnToggleSidebar) {
+            elements.btnToggleSidebar.innerHTML = '◀';
+            elements.btnToggleSidebar.title = 'Show sidebar';
+            elements.btnToggleSidebar.style.right = '20px';
+        }
     }
 }
 
@@ -1444,10 +2268,10 @@ function setupEventListeners() {
     
     elements.btnCloseDataPanel?.addEventListener('click', closeDataPanel);
     elements.btnCloseProvincePanel?.addEventListener('click', closeProvincePanel);
+    elements.btnToggleSidebar?.addEventListener('click', toggleSidebar);
     
     elements.btnStreetView?.addEventListener('click', enterStreetView);
     elements.btnStreetViewProvincePanel?.addEventListener('click', enterStreetView);
-    elements.btnExitStreetView?.addEventListener('click', exitStreetView);
     
     elements.btnStreetViewFloating?.addEventListener('click', enterStreetView);
     

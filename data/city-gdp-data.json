@@ -1,0 +1,616 @@
+{
+  "cities": {
+    "on": [
+      {
+        "id": "toronto",
+        "name": "Toronto",
+        "lat": 43.6532,
+        "lng": -79.3832,
+        "gdp": 312000,
+        "population": 2930000,
+        "hasStreetView": true
+      },
+      {
+        "id": "ottawa",
+        "name": "Ottawa",
+        "lat": 45.4215,
+        "lng": -75.6972,
+        "gdp": 58000,
+        "population": 1017449,
+        "hasStreetView": true
+      },
+      {
+        "id": "mississauga",
+        "name": "Mississauga",
+        "lat": 43.5890,
+        "lng": -79.6441,
+        "gdp": 42000,
+        "population": 721599,
+        "hasStreetView": true
+      },
+      {
+        "id": "brampton",
+        "name": "Brampton",
+        "lat": 43.7315,
+        "lng": -79.7624,
+        "gdp": 28000,
+        "population": 656480,
+        "hasStreetView": true
+      },
+      {
+        "id": "hamilton",
+        "name": "Hamilton",
+        "lat": 43.2557,
+        "lng": -79.8711,
+        "gdp": 26000,
+        "population": 569353,
+        "hasStreetView": true
+      }
+    ],
+    "qc": [
+      {
+        "id": "montreal",
+        "name": "Montreal",
+        "lat": 45.5017,
+        "lng": -73.5673,
+        "gdp": 198000,
+        "population": 1780000,
+        "hasStreetView": true
+      },
+      {
+        "id": "quebec-city",
+        "name": "Quebec City",
+        "lat": 46.8139,
+        "lng": -71.2080,
+        "gdp": 43000,
+        "population": 542298,
+        "hasStreetView": true
+      },
+      {
+        "id": "laval",
+        "name": "Laval",
+        "lat": 45.6066,
+        "lng": -73.7124,
+        "gdp": 28000,
+        "population": 438366,
+        "hasStreetView": true
+      },
+      {
+        "id": "gatineau",
+        "name": "Gatineau",
+        "lat": 45.4765,
+        "lng": -75.7013,
+        "gdp": 16000,
+        "population": 291041,
+        "hasStreetView": true
+      },
+      {
+        "id": "longueuil",
+        "name": "Longueuil",
+        "lat": 45.5312,
+        "lng": -73.5180,
+        "gdp": 14000,
+        "population": 254483,
+        "hasStreetView": true
+      }
+    ],
+    "bc": [
+      {
+        "id": "vancouver",
+        "name": "Vancouver",
+        "lat": 49.2827,
+        "lng": -123.1207,
+        "gdp": 135000,
+        "population": 675218,
+        "hasStreetView": true
+      },
+      {
+        "id": "surrey",
+        "name": "Surrey",
+        "lat": 49.1913,
+        "lng": -122.8490,
+        "gdp": 32000,
+        "population": 568322,
+        "hasStreetView": true
+      },
+      {
+        "id": "burnaby",
+        "name": "Burnaby",
+        "lat": 49.2488,
+        "lng": -122.9805,
+        "gdp": 28000,
+        "population": 249125,
+        "hasStreetView": true
+      },
+      {
+        "id": "richmond",
+        "name": "Richmond",
+        "lat": 49.1666,
+        "lng": -123.1336,
+        "gdp": 24000,
+        "population": 209937,
+        "hasStreetView": true
+      },
+      {
+        "id": "victoria",
+        "name": "Victoria",
+        "lat": 48.4284,
+        "lng": -123.3656,
+        "gdp": 18000,
+        "population": 91867,
+        "hasStreetView": true
+      }
+    ],
+    "ab": [
+      {
+        "id": "calgary",
+        "name": "Calgary",
+        "lat": 51.0447,
+        "lng": -114.0719,
+        "gdp": 97000,
+        "population": 1306784,
+        "hasStreetView": true
+      },
+      {
+        "id": "edmonton",
+        "name": "Edmonton",
+        "lat": 53.5461,
+        "lng": -113.4938,
+        "gdp": 81000,
+        "population": 1010899,
+        "hasStreetView": true
+      },
+      {
+        "id": "red-deer",
+        "name": "Red Deer",
+        "lat": 52.2681,
+        "lng": -113.8111,
+        "gdp": 7500,
+        "population": 100418,
+        "hasStreetView": true
+      },
+      {
+        "id": "lethbridge",
+        "name": "Lethbridge",
+        "lat": 49.6942,
+        "lng": -112.8328,
+        "gdp": 5200,
+        "population": 98406,
+        "hasStreetView": true
+      },
+      {
+        "id": "medicine-hat",
+        "name": "Medicine Hat",
+        "lat": 50.0392,
+        "lng": -110.6764,
+        "gdp": 4100,
+        "population": 63260,
+        "hasStreetView": true
+      }
+    ],
+    "mb": [
+      {
+        "id": "winnipeg",
+        "name": "Winnipeg",
+        "lat": 49.8951,
+        "lng": -97.1384,
+        "gdp": 38000,
+        "population": 749534,
+        "hasStreetView": true
+      },
+      {
+        "id": "brandon",
+        "name": "Brandon",
+        "lat": 49.8483,
+        "lng": -99.9501,
+        "gdp": 2800,
+        "population": 51313,
+        "hasStreetView": true
+      },
+      {
+        "id": "steinbach",
+        "name": "Steinbach",
+        "lat": 49.5258,
+        "lng": -96.6839,
+        "gdp": 1200,
+        "population": 17806,
+        "hasStreetView": true
+      },
+      {
+        "id": "thompson",
+        "name": "Thompson",
+        "lat": 55.7436,
+        "lng": -97.8553,
+        "gdp": 900,
+        "population": 13678,
+        "hasStreetView": true
+      },
+      {
+        "id": "portage-la-prairie",
+        "name": "Portage la Prairie",
+        "lat": 49.9728,
+        "lng": -98.2928,
+        "gdp": 850,
+        "population": 13304,
+        "hasStreetView": true
+      }
+    ],
+    "sk": [
+      {
+        "id": "saskatoon",
+        "name": "Saskatoon",
+        "lat": 52.1332,
+        "lng": -106.6700,
+        "gdp": 24000,
+        "population": 246376,
+        "hasStreetView": true
+      },
+      {
+        "id": "regina",
+        "name": "Regina",
+        "lat": 50.4452,
+        "lng": -104.6189,
+        "gdp": 22000,
+        "population": 226404,
+        "hasStreetView": true
+      },
+      {
+        "id": "prince-albert",
+        "name": "Prince Albert",
+        "lat": 53.2033,
+        "lng": -105.7531,
+        "gdp": 1800,
+        "population": 37756,
+        "hasStreetView": true
+      },
+      {
+        "id": "moose-jaw",
+        "name": "Moose Jaw",
+        "lat": 50.3933,
+        "lng": -105.5519,
+        "gdp": 1500,
+        "population": 33890,
+        "hasStreetView": true
+      },
+      {
+        "id": "swift-current",
+        "name": "Swift Current",
+        "lat": 50.2881,
+        "lng": -107.7939,
+        "gdp": 900,
+        "population": 18435,
+        "hasStreetView": true
+      }
+    ],
+    "ns": [
+      {
+        "id": "halifax",
+        "name": "Halifax",
+        "lat": 44.6488,
+        "lng": -63.5752,
+        "gdp": 21000,
+        "population": 439819,
+        "hasStreetView": true
+      },
+      {
+        "id": "cape-breton",
+        "name": "Cape Breton",
+        "lat": 46.1389,
+        "lng": -60.1927,
+        "gdp": 2100,
+        "population": 94285,
+        "hasStreetView": true
+      },
+      {
+        "id": "truro",
+        "name": "Truro",
+        "lat": 45.3670,
+        "lng": -63.2755,
+        "gdp": 650,
+        "population": 12261,
+        "hasStreetView": true
+      },
+      {
+        "id": "new-glasgow",
+        "name": "New Glasgow",
+        "lat": 45.5920,
+        "lng": -62.6486,
+        "gdp": 480,
+        "population": 9075,
+        "hasStreetView": true
+      },
+      {
+        "id": "sydney",
+        "name": "Sydney",
+        "lat": 46.1351,
+        "lng": -60.1831,
+        "gdp": 1100,
+        "population": 31597,
+        "hasStreetView": true
+      }
+    ],
+    "nb": [
+      {
+        "id": "moncton",
+        "name": "Moncton",
+        "lat": 46.0878,
+        "lng": -64.7782,
+        "gdp": 8900,
+        "population": 79470,
+        "hasStreetView": true
+      },
+      {
+        "id": "saint-john",
+        "name": "Saint John",
+        "lat": 45.2733,
+        "lng": -66.0633,
+        "gdp": 7200,
+        "population": 67575,
+        "hasStreetView": true
+      },
+      {
+        "id": "fredericton",
+        "name": "Fredericton",
+        "lat": 45.9636,
+        "lng": -66.6431,
+        "gdp": 4100,
+        "population": 63116,
+        "hasStreetView": true
+      },
+      {
+        "id": "dieppe",
+        "name": "Dieppe",
+        "lat": 46.0995,
+        "lng": -64.7243,
+        "gdp": 1200,
+        "population": 28114,
+        "hasStreetView": true
+      },
+      {
+        "id": "bathurst",
+        "name": "Bathurst",
+        "lat": 47.6186,
+        "lng": -65.6506,
+        "gdp": 650,
+        "population": 12157,
+        "hasStreetView": true
+      }
+    ],
+    "nl": [
+      {
+        "id": "st-johns",
+        "name": "St. John's",
+        "lat": 47.5615,
+        "lng": -52.7126,
+        "gdp": 7800,
+        "population": 114000,
+        "hasStreetView": true
+      },
+      {
+        "id": "mount-pearl",
+        "name": "Mount Pearl",
+        "lat": 47.5189,
+        "lng": -52.8055,
+        "gdp": 950,
+        "population": 22957,
+        "hasStreetView": true
+      },
+      {
+        "id": "corner-brook",
+        "name": "Corner Brook",
+        "lat": 48.9500,
+        "lng": -57.9522,
+        "gdp": 850,
+        "population": 19806,
+        "hasStreetView": true
+      },
+      {
+        "id": "conception-bay-south",
+        "name": "Conception Bay South",
+        "lat": 47.5167,
+        "lng": -52.9833,
+        "gdp": 600,
+        "population": 26199,
+        "hasStreetView": true
+      },
+      {
+        "id": "paradise",
+        "name": "Paradise",
+        "lat": 47.5333,
+        "lng": -52.8667,
+        "gdp": 480,
+        "population": 21389,
+        "hasStreetView": true
+      }
+    ],
+    "pe": [
+      {
+        "id": "charlottetown",
+        "name": "Charlottetown",
+        "lat": 46.2382,
+        "lng": -63.1311,
+        "gdp": 2100,
+        "population": 36094,
+        "hasStreetView": true
+      },
+      {
+        "id": "summerside",
+        "name": "Summerside",
+        "lat": 46.3950,
+        "lng": -63.7886,
+        "gdp": 650,
+        "population": 16001,
+        "hasStreetView": true
+      },
+      {
+        "id": "stratford",
+        "name": "Stratford",
+        "lat": 46.2167,
+        "lng": -63.0900,
+        "gdp": 280,
+        "population": 10064,
+        "hasStreetView": true
+      },
+      {
+        "id": "cornwall",
+        "name": "Cornwall",
+        "lat": 46.2292,
+        "lng": -63.2197,
+        "gdp": 180,
+        "population": 5348,
+        "hasStreetView": true
+      },
+      {
+        "id": "montague",
+        "name": "Montague",
+        "lat": 46.1667,
+        "lng": -62.6500,
+        "gdp": 90,
+        "population": 1895,
+        "hasStreetView": true
+      }
+    ],
+    "yt": [
+      {
+        "id": "whitehorse",
+        "name": "Whitehorse",
+        "lat": 60.7212,
+        "lng": -135.0568,
+        "gdp": 1800,
+        "population": 28201,
+        "hasStreetView": true
+      },
+      {
+        "id": "dawson-city",
+        "name": "Dawson City",
+        "lat": 64.0606,
+        "lng": -139.4333,
+        "gdp": 120,
+        "population": 1375,
+        "hasStreetView": false
+      },
+      {
+        "id": "watson-lake",
+        "name": "Watson Lake",
+        "lat": 60.0633,
+        "lng": -128.7142,
+        "gdp": 85,
+        "population": 802,
+        "hasStreetView": false
+      },
+      {
+        "id": "haines-junction",
+        "name": "Haines Junction",
+        "lat": 60.7522,
+        "lng": -137.5108,
+        "gdp": 45,
+        "population": 613,
+        "hasStreetView": false
+      },
+      {
+        "id": "carmacks",
+        "name": "Carmacks",
+        "lat": 62.0972,
+        "lng": -136.2833,
+        "gdp": 30,
+        "population": 493,
+        "hasStreetView": false
+      }
+    ],
+    "nt": [
+      {
+        "id": "yellowknife",
+        "name": "Yellowknife",
+        "lat": 62.4540,
+        "lng": -114.3718,
+        "gdp": 2400,
+        "population": 20340,
+        "hasStreetView": true
+      },
+      {
+        "id": "hay-river",
+        "name": "Hay River",
+        "lat": 60.8156,
+        "lng": -115.7999,
+        "gdp": 180,
+        "population": 3528,
+        "hasStreetView": false
+      },
+      {
+        "id": "inuvik",
+        "name": "Inuvik",
+        "lat": 68.3607,
+        "lng": -133.7230,
+        "gdp": 150,
+        "population": 3243,
+        "hasStreetView": false
+      },
+      {
+        "id": "fort-smith",
+        "name": "Fort Smith",
+        "lat": 60.0053,
+        "lng": -111.8828,
+        "gdp": 95,
+        "population": 2542,
+        "hasStreetView": false
+      },
+      {
+        "id": "behchoko",
+        "name": "Behchokǫ̀",
+        "lat": 62.7998,
+        "lng": -116.0494,
+        "gdp": 70,
+        "population": 1874,
+        "hasStreetView": false
+      }
+    ],
+    "nu": [
+      {
+        "id": "iqaluit",
+        "name": "Iqaluit",
+        "lat": 63.7467,
+        "lng": -68.5170,
+        "gdp": 1200,
+        "population": 7740,
+        "hasStreetView": false
+      },
+      {
+        "id": "rankin-inlet",
+        "name": "Rankin Inlet",
+        "lat": 62.8097,
+        "lng": -92.0896,
+        "gdp": 120,
+        "population": 2842,
+        "hasStreetView": false
+      },
+      {
+        "id": "arviat",
+        "name": "Arviat",
+        "lat": 61.1092,
+        "lng": -94.0586,
+        "gdp": 95,
+        "population": 2657,
+        "hasStreetView": false
+      },
+      {
+        "id": "baker-lake",
+        "name": "Baker Lake",
+        "lat": 64.3189,
+        "lng": -96.0764,
+        "gdp": 65,
+        "population": 2061,
+        "hasStreetView": false
+      },
+      {
+        "id": "cambridge-bay",
+        "name": "Cambridge Bay",
+        "lat": 69.1139,
+        "lng": -105.0525,
+        "gdp": 85,
+        "population": 1760,
+        "hasStreetView": false
+      }
+    ]
+  }
+}
+

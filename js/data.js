@@ -66,6 +66,7 @@ export let CANADIAN_PROVINCES_GDP = [];
 export let CANADIAN_PROVINCES_INCOME = [];
 export let PROVINCE_GDP_METRICS = {};
 export let PROVINCE_INCOME_METRICS = {};
+export let CITY_DATA = {};
 
 export let CURRENT_DATA_TYPE = 'gdp';
 
@@ -309,11 +310,36 @@ export async function loadIncomeData() {
     }
 }
 
+export async function loadCityData() {
+    try {
+        const response = await fetch('../data/city-gdp-data.json');
+        const data = await response.json();
+        
+        CITY_DATA = data.cities;
+        
+        console.log('✅ Loaded city data for all provinces');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to load city data:', error);
+        return false;
+    }
+}
+
 export async function loadProvinceData() {
     const gdpSuccess = await loadGDPData();
     const incomeSuccess = await loadIncomeData();
+    const citySuccess = await loadCityData();
     
-    return gdpSuccess && incomeSuccess;
+    return gdpSuccess && incomeSuccess && citySuccess;
+}
+
+export function getCitiesForProvince(provinceId) {
+    return CITY_DATA[provinceId] || [];
+}
+
+export function getCityById(provinceId, cityId) {
+    const cities = getCitiesForProvince(provinceId);
+    return cities.find(c => c.id === cityId) || null;
 }
 
 export function setCurrentDataType(type) {
