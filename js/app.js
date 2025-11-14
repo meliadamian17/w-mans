@@ -97,6 +97,11 @@ const elements = {
     onboardingTooltip: document.getElementById('onboarding-tooltip'),
     loadingIndicator: document.getElementById('loading-indicator'),
     
+    introOverlay: document.getElementById('intro-overlay'),
+    introTitle: document.getElementById('intro-title'),
+    introDescription: document.getElementById('intro-description'),
+    btnSkipIntro: document.getElementById('btn-skip-intro'),
+    
     tabButtons: document.querySelectorAll('.tab-btn'),
     tabPanes: document.querySelectorAll('.tab-pane'),
     tabTrendBtn: document.getElementById('tab-trend-btn'),
@@ -127,6 +132,146 @@ const elements = {
     comparisonTitle: document.getElementById('comparison-title'),
     comparisonNote: document.getElementById('comparison-note'),
 };
+
+// Intro sequence data
+const introSequence = [
+    {
+        title: "Welcome to Canada 🍁",
+        description: "Let's take you on a journey through Canada's economic landscape. From coast to coast, each province tells a unique story.",
+        camera: { center: [-95.7129, 56.1304], zoom: 3, pitch: 0, bearing: 0 },
+        duration: 4500
+    },
+    {
+        title: "The Economic Powerhouses",
+        description: "Ontario and Quebec dominate with their massive economies, contributing over 60% of Canada's GDP. Check out how Toronto and Montreal light up the map.",
+        camera: { center: [-79.3832, 45.5019], zoom: 5.5, pitch: 35, bearing: -20 },
+        duration: 5000
+    },
+    {
+        title: "The West's Rising Stars",
+        description: "Alberta's energy sector and BC's tech hub in Vancouver are punching way above their weight. Oil, gas, and innovation drive the western economy.",
+        camera: { center: [-119.4960, 53.5461], zoom: 4.8, pitch: 30, bearing: 15 },
+        duration: 5000
+    },
+    {
+        title: "The Atlantic Perspective",
+        description: "The Maritime provinces may be smaller in GDP, but they're rich in culture, fishing, and tight-knit communities that keep Canada connected.",
+        camera: { center: [-63.5859, 46.2382], zoom: 5.2, pitch: 25, bearing: -30 },
+        duration: 4500
+    },
+    {
+        title: "Your Turn to Explore",
+        description: "Toggle between GDP and income data. Switch provincial and regional heatmaps. Dive into cities to see the real estate 'night sky'. The story's yours to uncover.",
+        camera: { center: [-95.7129, 56.1304], zoom: 3.5, pitch: 20, bearing: 0 },
+        duration: 5500
+    }
+];
+
+let introAnimationRunning = false;
+let introSkipped = false;
+
+async function playIntroSequence() {
+    if (!elements.map || !elements.introOverlay) return;
+    
+    introAnimationRunning = true;
+    introSkipped = false;
+    
+    // Hide all HUD elements
+    elements.mapContainer.classList.add('hide-hud');
+    
+    // Show intro overlay
+    elements.introOverlay.style.display = 'flex';
+    elements.introOverlay.classList.remove('fade-out');
+    
+    // Play through each scene
+    for (let i = 0; i < introSequence.length; i++) {
+        if (introSkipped) break;
+        
+        const scene = introSequence[i];
+        
+        // Update text with fade animation
+        await updateIntroText(scene.title, scene.description);
+        
+        // Animate camera
+        elements.map.easeTo({
+            ...scene.camera,
+            duration: 2000,
+            easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+        });
+        
+        // Wait for scene duration (unless skipped)
+        await sleep(scene.duration);
+        
+        if (introSkipped) break;
+    }
+    
+    // End intro
+    endIntro();
+}
+
+function updateIntroText(title, description) {
+    return new Promise((resolve) => {
+        // Fade out current text
+        if (elements.introTitle && elements.introDescription) {
+            elements.introTitle.style.animation = 'none';
+            elements.introDescription.style.animation = 'none';
+            elements.introTitle.style.opacity = '0';
+            elements.introDescription.style.opacity = '0';
+            
+            setTimeout(() => {
+                // Update text
+                elements.introTitle.textContent = title;
+                elements.introDescription.textContent = description;
+                
+                // Fade in new text
+                elements.introTitle.style.animation = 'fadeInUp 0.8s ease-out forwards';
+                elements.introDescription.style.animation = 'fadeInUp 0.8s ease-out 0.3s forwards';
+                
+                resolve();
+            }, 500);
+        } else {
+            resolve();
+        }
+    });
+}
+
+function endIntro() {
+    introAnimationRunning = false;
+    
+    // Fade out intro overlay
+    if (elements.introOverlay) {
+        elements.introOverlay.classList.add('fade-out');
+        
+        setTimeout(() => {
+            elements.introOverlay.style.display = 'none';
+        }, 1000);
+    }
+    
+    // Show HUD elements
+    if (elements.mapContainer) {
+        elements.mapContainer.classList.remove('hide-hud');
+    }
+    
+    // Animate back to Canada view
+    if (elements.map) {
+        elements.map.easeTo({
+            center: [-95.7129, 56.1304],
+            zoom: 3.5,
+            pitch: 20,
+            bearing: 0,
+            duration: 1500
+        });
+    }
+}
+
+function skipIntro() {
+    introSkipped = true;
+    endIntro();
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function initApp() {
     try {
@@ -159,6 +304,11 @@ async function initApp() {
         }, 1000);
         
         showLoadingIndicator(false);
+        
+        // Play intro sequence after everything is loaded
+        setTimeout(() => {
+            playIntroSequence();
+        }, 500);
         
     } catch (error) {
         console.error('❌ Initialization error:', error);
@@ -2929,13 +3079,11 @@ function exitStreetView() {
     
     appState.streetViewOpen = false;
     
-    // Apply fade-out animation
     elements.streetViewContainer.style.animation = 'fadeOut 200ms ease-in-out';
     
-    // Wait for animation to complete before hiding
     setTimeout(() => {
         elements.streetViewContainer.classList.add('hidden');
-        elements.streetViewContainer.style.animation = ''; // Reset animation
+        elements.streetViewContainer.style.animation = '';
         
         if (appState.mapillaryViewer) {
             try {
@@ -2946,7 +3094,6 @@ function exitStreetView() {
             }
         }
         
-        // Remove resize handler
         if (appState.nightSkyResizeHandler) {
             window.removeEventListener('resize', appState.nightSkyResizeHandler);
             appState.nightSkyResizeHandler = null;
@@ -2962,12 +3109,10 @@ function exitStreetView() {
         appState.nightSkyStars = [];
     }, 200);
     
-    // Immediately hide legend and restore overlays
     if (elements.nightSkyLegend) {
         elements.nightSkyLegend.classList.add('hidden');
     }
     
-    // Restore top-left and top-right overlays
     const topLeftOverlay = document.querySelector('.map-overlay.top-left');
     const topRightOverlay = document.querySelector('.map-overlay.top-right');
     if (topLeftOverlay) {
@@ -2986,16 +3131,13 @@ function exitStreetView() {
     }
     appState.legendPanelWasHidden = false;
     
-    // Make sure sidebar is visible when exiting
     if (!appState.sidebarVisible) {
         appState.sidebarVisible = true;
         elements.dataPanel.classList.remove('sidebar-hidden');
     }
     
-    // Update button text back to Enter Street View
     updateStreetViewButton();
     
-    // Return to city view if a city is selected
     if (appState.selectedCity && elements.map) {
         elements.map.easeTo({
             center: [appState.selectedCity.lng, appState.selectedCity.lat],
@@ -3006,7 +3148,6 @@ function exitStreetView() {
             essential: true,
         });
     } else if (appState.selectedProvince && elements.map) {
-        // Return to province view
         const province = getProvinceById(appState.selectedProvince);
         if (province) {
             elements.map.easeTo({
@@ -3030,7 +3171,6 @@ function showLoadingIndicator(show) {
 }
 
 function closeDataPanel() {
-    // If in street view, just hide the sidebar, don't close everything
     if (appState.streetViewOpen) {
         toggleSidebar();
         return;
@@ -3114,14 +3254,12 @@ function toggleLegend() {
     appState.legendOpen = !appState.legendOpen;
     if (appState.legendOpen) {
         elements.legendPanel.classList.remove('hidden');
-        // Update button to show "on" state
         if (elements.btnToggleLegend) {
             elements.btnToggleLegend.classList.add('active');
             elements.btnToggleLegend.innerHTML = '📊 Legend <span class="toggle-indicator">●</span>';
         }
     } else {
         elements.legendPanel.classList.add('hidden');
-        // Update button to show "off" state
         if (elements.btnToggleLegend) {
             elements.btnToggleLegend.classList.remove('active');
             elements.btnToggleLegend.innerHTML = '📊 Legend <span class="toggle-indicator">○</span>';
@@ -3167,6 +3305,8 @@ function setupEventListeners() {
         setTimeout(() => elements.onboardingTooltip.classList.add('hidden'), 300);
     });
     
+    elements.btnSkipIntro?.addEventListener('click', skipIntro);
+    
     elements.tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const tabName = button.getAttribute('data-tab');
@@ -3183,8 +3323,12 @@ function setupEventListeners() {
     });
     
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && appState.streetViewOpen) {
-            exitStreetView();
+        if (e.key === 'Escape') {
+            if (introAnimationRunning) {
+                skipIntro();
+            } else if (appState.streetViewOpen) {
+                exitStreetView();
+            }
         }
         if (e.key === 'h' || e.key === 'H') {
             elements.onboardingTooltip.classList.remove('hidden');
