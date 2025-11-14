@@ -435,6 +435,10 @@ button:disabled {
     padding: 1rem;
 }
 
+.map-overlay.legend-panel {
+    position: absolute;
+}
+
 .legend-panel h3 {
     font-size: 1rem;
     font-weight: 600;

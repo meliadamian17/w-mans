@@ -54,7 +54,6 @@ const elements = {
     mapContainer: document.getElementById('map-container'),
     
     dataTypeSelect: document.getElementById('data-type-select'),
-    btnResetView: document.getElementById('btn-reset-view'),
     btnCanadaView: document.getElementById('btn-canada-view'),
     btnToggleLegend: document.getElementById('btn-toggle-legend'),
     btnCloseDataPanel: document.getElementById('btn-close-data-panel'),
@@ -118,6 +117,12 @@ async function initApp() {
         
         updateLegend();
         updateTabLabels();
+        
+        // Initialize legend as visible by default
+        if (elements.legendPanel) {
+            elements.legendPanel.classList.remove('hidden');
+            appState.legendOpen = true;
+        }
         
         setTimeout(() => {
             if (elements.onboardingTooltip) {
@@ -2238,18 +2243,6 @@ function setupEventListeners() {
     elements.dataTypeSelect?.addEventListener('change', (e) => {
         const newDataType = e.target.value;
         switchDataType(newDataType);
-    });
-    
-    elements.btnResetView?.addEventListener('click', () => {
-        if (elements.map) {
-            elements.map.easeTo({
-                center: [-95.7129, 56.1304],
-                zoom: 1,
-                pitch: 45,
-                bearing: 0,
-                duration: 1500,
-            });
-        }
     });
     
     elements.btnCanadaView?.addEventListener('click', () => {
