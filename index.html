@@ -45,8 +45,8 @@
                     <button id="btn-canada-view" class="btn-control" title="Zoom to Canada">
                         🇨🇦 Canada
                     </button>
-                    <button id="btn-toggle-legend" class="btn-control" title="Toggle legend">
-                        📊 Legend
+                    <button id="btn-toggle-legend" class="btn-control active" title="Toggle legend">
+                        📊 Legend <span class="toggle-indicator">●</span>
                     </button>
                 </div>
             </div>
@@ -92,6 +92,9 @@
                     <p id="province-population"></p>
                     <p id="province-region" class="muted-text"></p>
                     <p id="province-coordinates"></p>
+                    <button id="btn-street-view-province-panel" class="btn-night-sky" style="margin-top: 1rem;">
+                        🌌 View Night Sky
+                    </button>
                 </div>
             </div>
 
@@ -150,6 +153,9 @@
             </div>
 
             <div class="panel-footer">
+                <button id="btn-street-view-right-panel" class="btn-night-sky">
+                    🌌 View Night Sky
+                </button>
                 <p class="data-source">Data source: Statistics Canada</p>
             </div>
         </aside>
@@ -186,7 +192,7 @@
             </div>
         </div>
 
-        <button id="btn-street-view" class="btn-street-view-floating hidden">
+        <button id="btn-street-view-floating" class="btn-street-view-floating hidden">
             🌌 Night Sky View
         </button>
     </div>

@@ -55,7 +55,7 @@ const appState = {
     selectedCity: null,
     streetViewOpen: false,
     mapLoaded: false,
-    legendOpen: false,
+    legendOpen: true, // Legend is visible by default
     mapillaryViewer: null,
     sidebarVisible: true,
     realEstateData: null,
@@ -1081,49 +1081,42 @@ function renderCityComparisonChart(selectedCity, provinceId) {
 function updateStreetViewButton() {
     console.log('🔄 updateStreetViewButton called, streetViewOpen:', appState.streetViewOpen);
     
-    const btns = [
-        elements.btnStreetView,
-        elements.btnStreetViewProvincePanel,
-        elements.btnStreetViewFloating
-    ];
+    // Always hide floating button - we never want it to show
+    if (elements.btnStreetViewFloating) {
+        elements.btnStreetViewFloating.classList.add('hidden');
+    }
+    
+    // Always hide province panel button - night sky is only for cities
+    if (elements.btnStreetViewProvincePanel) {
+        elements.btnStreetViewProvincePanel.classList.add('hidden');
+    }
+    
+    // Only manage the right panel button
+    const btn = elements.btnStreetView;
     
     if (appState.streetViewOpen) {
         // In night sky view mode - show exit button
-        console.log('Setting buttons to Exit Night Sky mode (RED)');
-        btns.forEach(btn => {
-            if (btn) {
-                btn.textContent = '✕ Exit Night Sky';
-                btn.style.setProperty('background', '#ef4444', 'important');
-                btn.style.setProperty('background-image', 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', 'important');
-            }
-        });
+        console.log('Setting button to Exit Night Sky mode (RED)');
+        if (btn) {
+            btn.textContent = '✕ Exit Night Sky';
+            btn.style.setProperty('background', '#ef4444', 'important');
+            btn.style.setProperty('background-image', 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', 'important');
+            btn.classList.remove('hidden');
+        }
     } else if (appState.selectedCity) {
-        // City selected but not in night sky view
-        console.log('Setting buttons to Enter Night Sky mode (BLUE)');
-        btns.forEach(btn => {
-            if (btn) {
-                btn.textContent = '🌌 View Night Sky';
-                btn.style.removeProperty('background');
-                btn.style.removeProperty('background-image');
-            }
-        });
+        // City selected but not in night sky view - show night sky button
+        console.log('Setting button to Enter Night Sky mode (BLUE) - City selected');
+        if (btn) {
+            btn.textContent = '🌌 View Night Sky';
+            btn.style.removeProperty('background');
+            btn.style.removeProperty('background-image');
+            btn.classList.remove('hidden');
+        }
     } else {
-        // Province selected
-        console.log('Setting buttons to Provincial View mode');
-        btns.forEach(btn => {
-            if (btn) {
-                btn.textContent = '🌌 Night Sky View';
-                btn.style.removeProperty('background');
-                btn.style.removeProperty('background-image');
-            }
-        });
-    }
-    
-    if (elements.btnStreetViewFloating) {
-        if (appState.selectedProvince || appState.selectedCity || appState.streetViewOpen) {
-            elements.btnStreetViewFloating.classList.remove('hidden');
-        } else {
-            elements.btnStreetViewFloating.classList.add('hidden');
+        // Province selected or nothing selected - hide the button
+        console.log('Hiding night sky button - no city selected');
+        if (btn) {
+            btn.classList.add('hidden');
         }
     }
 }
@@ -2358,6 +2351,16 @@ async function enterStreetView() {
             appState.legendPanelWasHidden = false;
         }
         
+        // Hide top-left and top-right overlays for immersive view
+        const topLeftOverlay = document.querySelector('.map-overlay.top-left');
+        const topRightOverlay = document.querySelector('.map-overlay.top-right');
+        if (topLeftOverlay) {
+            topLeftOverlay.classList.add('hidden');
+        }
+        if (topRightOverlay) {
+            topRightOverlay.classList.add('hidden');
+        }
+        
         if (elements.nightSkyLegend) {
             elements.nightSkyLegend.classList.remove('hidden');
         }
@@ -2925,28 +2928,53 @@ function exitStreetView() {
     console.log('🚪 Exiting night sky view...');
     
     appState.streetViewOpen = false;
-    elements.streetViewContainer.classList.add('hidden');
     
-    if (appState.mapillaryViewer) {
-        try {
-            appState.mapillaryViewer.remove();
-            appState.mapillaryViewer = null;
-        } catch (e) {
-            console.warn('Error removing viewer:', e);
+    // Apply fade-out animation
+    elements.streetViewContainer.style.animation = 'fadeOut 200ms ease-in-out';
+    
+    // Wait for animation to complete before hiding
+    setTimeout(() => {
+        elements.streetViewContainer.classList.add('hidden');
+        elements.streetViewContainer.style.animation = ''; // Reset animation
+        
+        if (appState.mapillaryViewer) {
+            try {
+                appState.mapillaryViewer.remove();
+                appState.mapillaryViewer = null;
+            } catch (e) {
+                console.warn('Error removing viewer:', e);
+            }
         }
-    }
+        
+        // Remove resize handler
+        if (appState.nightSkyResizeHandler) {
+            window.removeEventListener('resize', appState.nightSkyResizeHandler);
+            appState.nightSkyResizeHandler = null;
+        }
+        
+        cleanupNightSkyInteractions();
+        hideNightSkyTooltip();
+        
+        const canvas = document.getElementById('street-view-canvas');
+        canvas.innerHTML = '';
+        appState.nightSkyCanvas = null;
+        appState.nightSkyContext = null;
+        appState.nightSkyStars = [];
+    }, 200);
     
-    // Remove resize handler
-    if (appState.nightSkyResizeHandler) {
-        window.removeEventListener('resize', appState.nightSkyResizeHandler);
-        appState.nightSkyResizeHandler = null;
-    }
-    
-    cleanupNightSkyInteractions();
-    hideNightSkyTooltip();
-    
+    // Immediately hide legend and restore overlays
     if (elements.nightSkyLegend) {
         elements.nightSkyLegend.classList.add('hidden');
+    }
+    
+    // Restore top-left and top-right overlays
+    const topLeftOverlay = document.querySelector('.map-overlay.top-left');
+    const topRightOverlay = document.querySelector('.map-overlay.top-right');
+    if (topLeftOverlay) {
+        topLeftOverlay.classList.remove('hidden');
+    }
+    if (topRightOverlay) {
+        topRightOverlay.classList.remove('hidden');
     }
     
     if (elements.legendPanel) {
@@ -2957,12 +2985,6 @@ function exitStreetView() {
         }
     }
     appState.legendPanelWasHidden = false;
-    
-    const canvas = document.getElementById('street-view-canvas');
-    canvas.innerHTML = '';
-    appState.nightSkyCanvas = null;
-    appState.nightSkyContext = null;
-    appState.nightSkyStars = [];
     
     // Make sure sidebar is visible when exiting
     if (!appState.sidebarVisible) {
@@ -3092,8 +3114,18 @@ function toggleLegend() {
     appState.legendOpen = !appState.legendOpen;
     if (appState.legendOpen) {
         elements.legendPanel.classList.remove('hidden');
+        // Update button to show "on" state
+        if (elements.btnToggleLegend) {
+            elements.btnToggleLegend.classList.add('active');
+            elements.btnToggleLegend.innerHTML = '📊 Legend <span class="toggle-indicator">●</span>';
+        }
     } else {
         elements.legendPanel.classList.add('hidden');
+        // Update button to show "off" state
+        if (elements.btnToggleLegend) {
+            elements.btnToggleLegend.classList.remove('active');
+            elements.btnToggleLegend.innerHTML = '📊 Legend <span class="toggle-indicator">○</span>';
+        }
     }
 }
 
