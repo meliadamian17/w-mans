@@ -737,6 +737,128 @@ button:disabled {
     height: 100%;
 }
 
+.night-sky-legend {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    width: 260px;
+    background: rgba(10, 10, 26, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    color: #f8fafc;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    z-index: 210;
+    backdrop-filter: blur(12px);
+}
+
+.night-sky-legend h3 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: #cbd5f5;
+}
+
+.legend-section {
+    margin-bottom: 0.75rem;
+}
+
+.legend-section:last-child {
+    margin-bottom: 0;
+}
+
+.legend-section h4 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+    margin-bottom: 0.35rem;
+}
+
+.legend-section p {
+    font-size: 0.85rem;
+    color: #e2e8f0;
+    line-height: 1.4;
+}
+
+.legend-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.legend-list li {
+    display: flex;
+    align-items: center;
+    font-size: 0.85rem;
+    color: #e2e8f0;
+}
+
+.shape-icon {
+    width: 22px;
+    height: 22px;
+    margin-right: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.75rem;
+}
+
+.shape-icon.star::before {
+    content: '★';
+}
+
+.shape-icon.circle::before {
+    content: '●';
+}
+
+.shape-icon.square::before {
+    content: '■';
+}
+
+.shape-icon.triangle::before {
+    content: '▲';
+}
+
+.shape-icon.diamond::before {
+    content: '◆';
+}
+
+.night-sky-tooltip {
+    position: absolute;
+    min-width: 200px;
+    background: rgba(8, 12, 36, 0.95);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1rem;
+    color: #f8fafc;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+    z-index: 220;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.night-sky-tooltip .tooltip-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #cbd5f5;
+}
+
+.night-sky-tooltip .tooltip-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    color: #e2e8f0;
+}
+
+.night-sky-tooltip .tooltip-line span {
+    color: #94a3b8;
+}
+
 .street-view-controls {
     position: absolute;
     bottom: 1rem;

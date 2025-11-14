@@ -47,6 +47,14 @@ const appState = {
     legendOpen: false,
     mapillaryViewer: null,
     sidebarVisible: true,
+    realEstateData: null,
+    nightSkyCanvas: null,
+    nightSkyContext: null,
+    nightSkyResizeHandler: null,
+    nightSkyStars: [],
+    nightSkyMouseMoveHandler: null,
+    nightSkyMouseLeaveHandler: null,
+    legendPanelWasHidden: false,
 };
 
 const elements = {
@@ -71,6 +79,8 @@ const elements = {
     legendItems: document.getElementById('legend-items'),
     legendNote: document.getElementById('legend-note'),
     streetViewContainer: document.getElementById('street-view-container'),
+    nightSkyLegend: document.getElementById('night-sky-legend'),
+    nightSkyTooltip: document.getElementById('night-sky-tooltip'),
     onboardingTooltip: document.getElementById('onboarding-tooltip'),
     loadingIndicator: document.getElementById('loading-indicator'),
     
@@ -1038,22 +1048,21 @@ function updateStreetViewButton() {
     ];
     
     if (appState.streetViewOpen) {
-        // In street view mode - show exit button
-        console.log('Setting buttons to Exit Street View mode (RED)');
+        // In night sky view mode - show exit button
+        console.log('Setting buttons to Exit Night Sky mode (RED)');
         btns.forEach(btn => {
             if (btn) {
-                btn.textContent = '✕ Exit Street View';
+                btn.textContent = '✕ Exit Night Sky';
                 btn.style.setProperty('background', '#ef4444', 'important');
                 btn.style.setProperty('background-image', 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', 'important');
             }
         });
     } else if (appState.selectedCity) {
-        // City selected but not in street view
-        console.log('Setting buttons to Enter Street View mode (BLUE)');
+        // City selected but not in night sky view
+        console.log('Setting buttons to Enter Night Sky mode (BLUE)');
         btns.forEach(btn => {
             if (btn) {
-                btn.textContent = appState.selectedCity.hasStreetView ? 
-                    '🌍 Enter Street View' : '🏙️ City View';
+                btn.textContent = '🌌 View Night Sky';
                 btn.style.removeProperty('background');
                 btn.style.removeProperty('background-image');
             }
@@ -2034,7 +2043,7 @@ function renderIncomeComparisonChart(metrics) {
 
 
 async function enterStreetView() {
-    console.log('🎬 enterStreetView called');
+    console.log('🎬 enterStreetView called - showing night sky');
     
     // If already in street view, exit it
     if (appState.streetViewOpen) {
@@ -2044,11 +2053,18 @@ async function enterStreetView() {
     
     if (appState.selectedCity) {
         const city = appState.selectedCity;
-        console.log('🏙️ Opening street view for city:', city.name);
+        console.log('🌌 Opening night sky view for city:', city.name);
         
-        if (!city.hasStreetView) {
-            showCityViewPlaceholder(city);
-            return;
+        // Hide GDP/Income legend while night sky is open
+        if (elements.legendPanel) {
+            appState.legendPanelWasHidden = elements.legendPanel.classList.contains('hidden');
+            elements.legendPanel.classList.add('hidden');
+        } else {
+            appState.legendPanelWasHidden = false;
+        }
+        
+        if (elements.nightSkyLegend) {
+            elements.nightSkyLegend.classList.remove('hidden');
         }
         
         appState.streetViewOpen = true;
@@ -2057,8 +2073,8 @@ async function enterStreetView() {
         // Update button immediately
         updateStreetViewButton();
         
-        const canvas = document.getElementById('street-view-canvas');
-        canvas.innerHTML = `
+        const canvasContainer = document.getElementById('street-view-canvas');
+        canvasContainer.innerHTML = `
             <div style="
                 width: 100%;
                 height: 100%;
@@ -2070,68 +2086,58 @@ async function enterStreetView() {
                 color: white;
             ">
                 <div class="spinner"></div>
-                <p style="margin-top: 1rem;">Loading street view for ${city.name}...</p>
+                <p style="margin-top: 1rem;">Loading constellation data for ${city.name}...</p>
             </div>
         `;
         
         try {
-            const imageId = await fetchMapillaryImage(city.lat, city.lng);
+            // Load real estate data
+            const allData = await loadRealEstateData();
             
-            if (!imageId) {
-                canvas.innerHTML = `
-                    <div style="
-                        width: 100%;
-                        height: 100%;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        flex-direction: column;
-                        background: #1a1a2e;
-                        color: white;
-                        text-align: center;
-                        padding: 2rem;
-                    ">
-                        <div style="font-size: 2rem; margin-bottom: 1rem;">📷</div>
-                        <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">No Street View Available</h2>
-                        <p>No street imagery found near ${city.name}</p>
-                        <p style="font-size: 0.9rem; color: #ccc; margin-top: 0.5rem;">Try another city or check back later</p>
-                    </div>
-                `;
-                elements.streetViewLocation.textContent = `Viewing: ${city.name} (No imagery available)`;
-                return;
-            }
-            
-            canvas.innerHTML = '';
-            
-            if (appState.mapillaryViewer) {
-                try {
-                    appState.mapillaryViewer.remove();
-                } catch (e) {
-                    console.warn('Error removing previous viewer:', e);
-                }
-            }
-            
-            appState.mapillaryViewer = new mapillary.Viewer({
-                accessToken: MAPILLARY_ACCESS_TOKEN,
-                container: 'street-view-canvas',
-                imageId: imageId,
-                component: {
-                    cover: false,
-                    keyboard: true,
-                    tag: false,
-                }
+            // Filter properties for this city
+            const cityProperties = allData.filter(property => {
+                const propertyCity = (property.City || '').trim();
+                const propertyProvince = (property.Province || '').trim();
+                return propertyCity.toLowerCase() === city.name.toLowerCase() && 
+                       propertyProvince.toLowerCase() === appState.selectedProvince.toLowerCase();
             });
             
-            elements.streetViewLocation.textContent = `Viewing: ${city.name}, ${appState.selectedProvince.toUpperCase()}`;
+            console.log(`Found ${cityProperties.length} properties for ${city.name}`);
+            
+            // Create canvas element
+            canvasContainer.innerHTML = '<canvas id="night-sky-canvas" style="width: 100%; height: 100%; display: block;"></canvas>';
+            const canvas = document.getElementById('night-sky-canvas');
+            
+            // Store canvas reference and reset interactions
+            cleanupNightSkyInteractions();
+            appState.nightSkyCanvas = canvas;
+            appState.nightSkyContext = canvas.getContext('2d');
+            hideNightSkyTooltip();
+            
+            // Render the night sky
+            const starData = renderNightSky(canvas, city, cityProperties);
+            appState.nightSkyStars = starData;
+            setupNightSkyInteractions(canvas);
+            
+            // Handle window resize
+            const resizeHandler = () => {
+                const updatedStars = renderNightSky(canvas, city, cityProperties);
+                appState.nightSkyStars = updatedStars;
+            };
+            window.removeEventListener('resize', appState.nightSkyResizeHandler);
+            appState.nightSkyResizeHandler = resizeHandler;
+            window.addEventListener('resize', resizeHandler);
+            
+            elements.streetViewLocation.textContent = `Viewing: ${city.name}, ${appState.selectedProvince.toUpperCase()} - ${cityProperties.length} properties`;
             
             // Update button to show exit option
             updateStreetViewButton();
             
-            console.log('✅ Street view loaded successfully');
+            console.log('✅ Night sky view loaded successfully');
             
         } catch (error) {
-            console.error('❌ Error loading street view:', error);
-            canvas.innerHTML = `
+            console.error('❌ Error loading night sky view:', error);
+            canvasContainer.innerHTML = `
                 <div style="
                     width: 100%;
                     height: 100%;
@@ -2145,7 +2151,7 @@ async function enterStreetView() {
                     padding: 2rem;
                 ">
                     <div style="font-size: 2rem; margin-bottom: 1rem;">⚠️</div>
-                    <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Error Loading Street View</h2>
+                    <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">Error Loading Night Sky</h2>
                     <p>${error.message}</p>
                 </div>
             `;
@@ -2223,6 +2229,384 @@ function showProvinceViewPlaceholder(province) {
     updateStreetViewButton();
 }
 
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim());
+    return result;
+}
+
+async function loadRealEstateData() {
+    if (appState.realEstateData) {
+        return appState.realEstateData;
+    }
+    
+    try {
+        const response = await fetch('../data/cleaned-real-estate-data.csv');
+        const csvText = await response.text();
+        const lines = csvText.trim().split('\n');
+        const headers = parseCSVLine(lines[0]);
+        
+        const data = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseCSVLine(lines[i]);
+            if (values.length < headers.length) continue;
+            
+            const record = {};
+            headers.forEach((header, index) => {
+                let value = values[index] || '';
+                // Remove quotes if present
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.slice(1, -1);
+                }
+                
+                // Parse numeric values
+                if (['Price', 'Bedrooms', 'Bathrooms', 'Latitude', 'Longitude', 'Acreage', 'Square Footage'].includes(header)) {
+                    value = value === '' ? null : parseFloat(value);
+                }
+                
+                record[header] = value;
+            });
+            
+            // Only add records with valid location and price data
+            if (record.Latitude && record.Longitude && record.Price && !isNaN(record.Price)) {
+                data.push(record);
+            }
+        }
+        
+        appState.realEstateData = data;
+        console.log('✅ Loaded real estate data:', data.length, 'properties');
+        return data;
+    } catch (error) {
+        console.error('❌ Failed to load real estate data:', error);
+        return [];
+    }
+}
+
+function getPropertyTypeShape(propertyType) {
+    const shapes = {
+        'Single Family': 'star',
+        'Condo': 'circle',
+        'Duplex': 'square',
+        'Townhouse': 'triangle',
+        'Apartment': 'diamond',
+    };
+    return shapes[propertyType] || 'star';
+}
+
+function drawStar(ctx, x, y, points, outerRadius, innerRadius, rotation = 0) {
+    ctx.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+        const angle = (i * Math.PI) / points - Math.PI / 2 + rotation;
+        const radius = i % 2 === 0 ? outerRadius : innerRadius;
+        const px = x + radius * Math.cos(angle);
+        const py = y + radius * Math.sin(angle);
+        if (i === 0) {
+            ctx.moveTo(px, py);
+        } else {
+            ctx.lineTo(px, py);
+        }
+    }
+    ctx.closePath();
+}
+
+function drawShape(ctx, x, y, shape, size) {
+    ctx.beginPath();
+    switch (shape) {
+        case 'star':
+            drawStar(ctx, x, y, 5, size, size * 0.4);
+            break;
+        case 'circle':
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            break;
+        case 'square':
+            ctx.rect(x - size, y - size, size * 2, size * 2);
+            break;
+        case 'triangle':
+            ctx.moveTo(x, y - size);
+            ctx.lineTo(x - size, y + size);
+            ctx.lineTo(x + size, y + size);
+            ctx.closePath();
+            break;
+        case 'diamond':
+            ctx.moveTo(x, y - size);
+            ctx.lineTo(x + size, y);
+            ctx.lineTo(x, y + size);
+            ctx.lineTo(x - size, y);
+            ctx.closePath();
+            break;
+        default:
+            drawStar(ctx, x, y, 5, size, size * 0.4);
+    }
+}
+
+function renderNightSky(canvas, city, properties) {
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width = canvas.offsetWidth;
+    const height = canvas.height = canvas.offsetHeight;
+    const starData = [];
+    
+    // Clear canvas with dark night sky gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#0a0a1a');
+    gradient.addColorStop(0.5, '#1a1a2e');
+    gradient.addColorStop(1, '#0f0f1e');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    
+    if (!properties || properties.length === 0) {
+        // Draw a message if no data
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '24px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No property data available', width / 2, height / 2);
+        return starData;
+    }
+    
+    // Calculate bounds for normalization
+    const prices = properties.map(p => p.Price).filter(p => p && !isNaN(p));
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const priceRange = maxPrice - minPrice || 1;
+    
+    const lats = properties.map(p => p.Latitude).filter(l => l && !isNaN(l));
+    const lngs = properties.map(p => p.Longitude).filter(l => l && !isNaN(l));
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const latRange = maxLat - minLat || 1;
+    const lngRange = maxLng - minLng || 1;
+    
+    // Add some padding
+    const padding = 50;
+    
+    // Draw stars (properties)
+    properties.forEach(property => {
+        if (!property.Latitude || !property.Longitude || !property.Price) return;
+        
+        // Map lat/lng to canvas coordinates
+        const normalizedLat = (property.Latitude - minLat) / latRange;
+        const normalizedLng = (property.Longitude - minLng) / lngRange;
+        const x = padding + normalizedLng * (width - padding * 2);
+        const y = padding + normalizedLat * (height - padding * 2);
+        
+        // Map price to brightness (0.3 to 1.0)
+        const normalizedPrice = (property.Price - minPrice) / priceRange;
+        const brightness = 0.3 + normalizedPrice * 0.7;
+        const opacity = brightness;
+        
+        // Get property type shape (handle both possible field names)
+        const propertyType = property['Property Type'] || property.Property_Type || property.property_type || '';
+        const shape = getPropertyTypeShape(propertyType);
+        
+        // Calculate star size based on price (relative)
+        const baseSize = 3;
+        const size = baseSize + normalizedPrice * 4;
+        
+        // Draw glow effect
+        const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, size * 3);
+        glowGradient.addColorStop(0, `rgba(255, 255, 255, ${opacity * 0.8})`);
+        glowGradient.addColorStop(0.5, `rgba(200, 220, 255, ${opacity * 0.4})`);
+        glowGradient.addColorStop(1, `rgba(200, 220, 255, 0)`);
+        ctx.fillStyle = glowGradient;
+        ctx.fillRect(x - size * 3, y - size * 3, size * 6, size * 6);
+        
+        // Draw star shape
+        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+        ctx.strokeStyle = `rgba(200, 220, 255, ${opacity * 0.8})`;
+        ctx.lineWidth = 1;
+        drawShape(ctx, x, y, shape, size);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Draw rays based on bedrooms and bathrooms
+        const bedrooms = property.Bedrooms || 0;
+        const bathrooms = property.Bathrooms || 0;
+        const totalRooms = bedrooms + bathrooms;
+        const numRays = Math.min(Math.max(totalRooms, 0), 8); // Cap at 8 rays
+        const rayLength = size * (1 + totalRooms * 0.3);
+        
+        if (numRays > 0) {
+            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.6})`;
+            ctx.lineWidth = 1;
+            for (let i = 0; i < numRays; i++) {
+                const angle = (i * Math.PI * 2) / numRays;
+                const endX = x + Math.cos(angle) * rayLength;
+                const endY = y + Math.sin(angle) * rayLength;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+            }
+        }
+        
+        const hitRadius = Math.max(size * 1.5, rayLength * 0.4 + size);
+        starData.push({
+            x,
+            y,
+            size,
+            hitRadius,
+            property,
+        });
+    });
+    
+    // Draw constellation lines (connect nearby stars)
+    ctx.strokeStyle = 'rgba(100, 150, 255, 0.2)';
+    ctx.lineWidth = 0.5;
+    const maxConnectionDistance = 100;
+    
+    for (let i = 0; i < properties.length; i++) {
+        const p1 = properties[i];
+        if (!p1.Latitude || !p1.Longitude) continue;
+        
+        const x1 = padding + ((p1.Longitude - minLng) / lngRange) * (width - padding * 2);
+        const y1 = padding + ((p1.Latitude - minLat) / latRange) * (height - padding * 2);
+        
+        for (let j = i + 1; j < properties.length; j++) {
+            const p2 = properties[j];
+            if (!p2.Latitude || !p2.Longitude) continue;
+            
+            const x2 = padding + ((p2.Longitude - minLng) / lngRange) * (width - padding * 2);
+            const y2 = padding + ((p2.Latitude - minLat) / latRange) * (height - padding * 2);
+            
+            const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+            if (distance < maxConnectionDistance) {
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+        }
+    }
+    
+    return starData;
+}
+
+function setupNightSkyInteractions(canvas) {
+    if (!canvas || !elements.nightSkyTooltip) return;
+    
+    cleanupNightSkyInteractions();
+    
+    const mouseMoveHandler = (event) => {
+        const hoveredStar = getHoveredNightSkyStar(event, canvas);
+        if (hoveredStar) {
+            showNightSkyTooltip(event, hoveredStar);
+        } else {
+            hideNightSkyTooltip();
+        }
+    };
+    
+    const mouseLeaveHandler = () => {
+        hideNightSkyTooltip();
+    };
+    
+    canvas.addEventListener('mousemove', mouseMoveHandler);
+    canvas.addEventListener('mouseleave', mouseLeaveHandler);
+    
+    appState.nightSkyMouseMoveHandler = mouseMoveHandler;
+    appState.nightSkyMouseLeaveHandler = mouseLeaveHandler;
+}
+
+function cleanupNightSkyInteractions() {
+    if (appState.nightSkyCanvas) {
+        if (appState.nightSkyMouseMoveHandler) {
+            appState.nightSkyCanvas.removeEventListener('mousemove', appState.nightSkyMouseMoveHandler);
+        }
+        if (appState.nightSkyMouseLeaveHandler) {
+            appState.nightSkyCanvas.removeEventListener('mouseleave', appState.nightSkyMouseLeaveHandler);
+        }
+    }
+    appState.nightSkyMouseMoveHandler = null;
+    appState.nightSkyMouseLeaveHandler = null;
+}
+
+function getHoveredNightSkyStar(event, canvas) {
+    if (!canvas || !appState.nightSkyStars || appState.nightSkyStars.length === 0) {
+        return null;
+    }
+    
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+    
+    let closestStar = null;
+    let closestDistance = Infinity;
+    
+    for (const star of appState.nightSkyStars) {
+        const dx = x - star.x;
+        const dy = y - star.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= star.hitRadius && distance < closestDistance) {
+            closestStar = star;
+            closestDistance = distance;
+        }
+    }
+    
+    return closestStar;
+}
+
+function showNightSkyTooltip(event, star) {
+    if (!elements.nightSkyTooltip || !elements.streetViewContainer || !star) return;
+    
+    const tooltip = elements.nightSkyTooltip;
+    const property = star.property || {};
+    
+    const price = typeof property.Price === 'number' && !isNaN(property.Price)
+        ? formatCurrency(property.Price)
+        : 'N/A';
+    
+    const bedrooms = typeof property.Bedrooms === 'number' && !isNaN(property.Bedrooms)
+        ? Number(property.Bedrooms)
+        : null;
+    const bathrooms = typeof property.Bathrooms === 'number' && !isNaN(property.Bathrooms)
+        ? Number(property.Bathrooms)
+        : null;
+    
+    const propertyType = property['Property Type'] || property.Property_Type || property.property_type || 'Unknown';
+    const squareFootage = typeof property['Square Footage'] === 'number' && !isNaN(property['Square Footage'])
+        ? `${Math.round(property['Square Footage'])} sq ft`
+        : '—';
+    
+    tooltip.innerHTML = `
+        <div class="tooltip-title">${property.City || 'Unknown'}, ${property.Province || ''}</div>
+        <div class="tooltip-line"><span>Price</span><strong>${price}</strong></div>
+        <div class="tooltip-line"><span>Bedrooms</span><strong>${bedrooms ?? '—'}</strong></div>
+        <div class="tooltip-line"><span>Bathrooms</span><strong>${bathrooms ?? '—'}</strong></div>
+        <div class="tooltip-line"><span>Property</span><strong>${propertyType}</strong></div>
+        <div class="tooltip-line"><span>Size</span><strong>${squareFootage}</strong></div>
+    `;
+    
+    const containerRect = elements.streetViewContainer.getBoundingClientRect();
+    const left = event.clientX - containerRect.left + 12;
+    const top = event.clientY - containerRect.top - 12;
+    
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.classList.remove('hidden');
+}
+
+function hideNightSkyTooltip() {
+    if (!elements.nightSkyTooltip) return;
+    elements.nightSkyTooltip.classList.add('hidden');
+}
+
 async function fetchMapillaryImage(lat, lng) {
     try {
         const radius = 100;
@@ -2243,7 +2627,7 @@ async function fetchMapillaryImage(lat, lng) {
 }
 
 function exitStreetView() {
-    console.log('🚪 Exiting street view...');
+    console.log('🚪 Exiting night sky view...');
     
     appState.streetViewOpen = false;
     elements.streetViewContainer.classList.add('hidden');
@@ -2257,8 +2641,33 @@ function exitStreetView() {
         }
     }
     
+    // Remove resize handler
+    if (appState.nightSkyResizeHandler) {
+        window.removeEventListener('resize', appState.nightSkyResizeHandler);
+        appState.nightSkyResizeHandler = null;
+    }
+    
+    cleanupNightSkyInteractions();
+    hideNightSkyTooltip();
+    
+    if (elements.nightSkyLegend) {
+        elements.nightSkyLegend.classList.add('hidden');
+    }
+    
+    if (elements.legendPanel) {
+        if (appState.legendPanelWasHidden) {
+            elements.legendPanel.classList.add('hidden');
+        } else {
+            elements.legendPanel.classList.remove('hidden');
+        }
+    }
+    appState.legendPanelWasHidden = false;
+    
     const canvas = document.getElementById('street-view-canvas');
     canvas.innerHTML = '';
+    appState.nightSkyCanvas = null;
+    appState.nightSkyContext = null;
+    appState.nightSkyStars = [];
     
     // Make sure sidebar is visible when exiting
     if (!appState.sidebarVisible) {
