@@ -11,6 +11,8 @@ import {
     formatNumber,
     getGDPColor,
     getIncomeColor,
+    getRegionalGDPColor,
+    getRegionalIncomeColor,
     getDataColor,
     getGDPStatus,
     getIncomeStatus,
@@ -19,6 +21,11 @@ import {
     getCurrentDataType,
     getCitiesForProvince,
     getCityById,
+    setCurrentDataScope,
+    getCurrentDataScope,
+    getRegionNameForProvince,
+    getRegionMetricsForProvince,
+    getScopedValueForProvince,
 } from './data.js';
 
 const PROVINCE_POPULATIONS = {
@@ -38,6 +45,10 @@ const PROVINCE_POPULATIONS = {
 };
 
 const MAPILLARY_ACCESS_TOKEN = 'MLY|25924883943764997|4ac03280f19bbd17e1e57bbef97fb5f2';
+const CANADA_BOUNDS = [
+    [-141.0, 40.0], // Southwest
+    [-50.0, 84.0],  // Northeast
+];
 
 const appState = {
     selectedProvince: null,
@@ -62,6 +73,7 @@ const elements = {
     mapContainer: document.getElementById('map-container'),
     
     dataTypeSelect: document.getElementById('data-type-select'),
+    mapScopeSelect: document.getElementById('map-scope-select'),
     btnCanadaView: document.getElementById('btn-canada-view'),
     btnToggleLegend: document.getElementById('btn-toggle-legend'),
     btnCloseDataPanel: document.getElementById('btn-close-data-panel'),
@@ -78,6 +90,7 @@ const elements = {
     legendTitle: document.getElementById('legend-title'),
     legendItems: document.getElementById('legend-items'),
     legendNote: document.getElementById('legend-note'),
+    scopeIndicator: document.getElementById('scope-indicator'),
     streetViewContainer: document.getElementById('street-view-container'),
     nightSkyLegend: document.getElementById('night-sky-legend'),
     nightSkyTooltip: document.getElementById('night-sky-tooltip'),
@@ -90,6 +103,7 @@ const elements = {
     
     provinceName: document.getElementById('province-name'),
     provincePopulation: document.getElementById('province-population'),
+    provinceRegion: document.getElementById('province-region'),
     provinceCoordinates: document.getElementById('province-coordinates'),
     panelProvinceTitle: document.getElementById('panel-province-title'),
     streetViewLocation: document.getElementById('street-view-location'),
@@ -125,6 +139,10 @@ async function initApp() {
         
         setupEventListeners();
         
+        if (elements.mapScopeSelect) {
+            elements.mapScopeSelect.value = getCurrentDataScope();
+        }
+        
         updateLegend();
         updateTabLabels();
         
@@ -159,6 +177,8 @@ async function initMap() {
                 pitch: 0,
                 bearing: 0,
                 projection: 'globe',
+                maxBounds: CANADA_BOUNDS,
+                renderWorldCopies: false,
             });
             
             elements.map = map;
@@ -234,15 +254,19 @@ async function addProvincePolygons(map) {
             let dataValue = 0;
             let color = '#ff0080';
             
-            if (getCurrentDataType() === 'income') {
-                const provinceData = CANADIAN_PROVINCES_INCOME.find(p => p.id === provinceId);
-                dataValue = provinceData?.averageIncome || 0;
-                color = provinceData?.averageIncome ? getIncomeColor(dataValue) : '#666666';
+            const scopeValue = getScopedValueForProvince(provinceId);
+            dataValue = scopeValue;
+            
+            const currentScope = getCurrentDataScope();
+            const dataType = getCurrentDataType();
+            
+            if (dataType === 'income') {
+                color = dataValue ? getDataColor(dataValue, currentScope) : '#666666';
             } else {
-                const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
-                dataValue = provinceData?.gdp2023 || 0;
-                color = getGDPColor(dataValue);
+                color = dataValue ? getDataColor(dataValue, currentScope) : '#ff0080';
             }
+            
+            const regionName = getRegionNameForProvince(provinceId);
             
             return {
                 ...feature,
@@ -250,6 +274,7 @@ async function addProvincePolygons(map) {
                 properties: {
                     ...feature.properties,
                     id: provinceId,
+                    region: regionName,
                     color: color,
                     dataValue: dataValue,
                     population: PROVINCE_POPULATIONS[provinceId] || 0,
@@ -314,6 +339,8 @@ async function addProvincePolygons(map) {
             const dataValue = feature.properties.dataValue;
             const name = feature.properties.name;
             const provinceId = feature.properties.id;
+            const scope = getCurrentDataScope();
+            const regionName = getRegionNameForProvince(provinceId);
             
             let provinceData = null;
             if (getCurrentDataType() === 'income') {
@@ -350,12 +377,22 @@ async function addProvincePolygons(map) {
                     tooltipContent += `Avg Income: N/A<br>`;
                     tooltipContent += `Status: No Data`;
                 } else {
-                    tooltipContent += `Avg Income: ${formatIncome(dataValue)}<br>`;
-                    tooltipContent += `Status: ${getIncomeStatus(dataValue)}`;
+                    if (scope === 'region') {
+                        tooltipContent += `Regional Avg (${regionName || 'Regional'}): ${formatIncome(dataValue)}<br>`;
+                        tooltipContent += `Provincial Avg: ${formatIncome(provinceData?.averageIncome || 0)}<br>`;
+                    } else {
+                        tooltipContent += `Avg Income: ${formatIncome(dataValue)}<br>`;
+                    }
+                    tooltipContent += `Status: ${getIncomeStatus(provinceData?.averageIncome || dataValue)}`;
                 }
             } else {
-                tooltipContent += `GDP 2023: $${dataValue.toLocaleString()}B<br>`;
-                tooltipContent += `Status: ${getGDPStatus(dataValue)}`;
+                if (scope === 'region') {
+                    tooltipContent += `Regional GDP 2023 (${regionName || 'Regional'}): $${dataValue.toLocaleString()}B<br>`;
+                    tooltipContent += `Provincial GDP 2023: $${(provinceData?.gdp2023 || 0).toLocaleString()}B<br>`;
+                } else {
+                    tooltipContent += `GDP 2023: $${dataValue.toLocaleString()}B<br>`;
+                }
+                tooltipContent += `Status: ${getGDPStatus(provinceData?.gdp2023 || dataValue)}`;
             }
             
             tooltip.innerHTML = tooltipContent;
@@ -761,7 +798,8 @@ function renderCityDetailsChart(city, provinceId) {
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${width / 2},${height / 2})`);
@@ -845,13 +883,14 @@ function renderCityOverviewChart(city, provinceId) {
     
     const width = 380;
     const height = 280;
-    const margin = { top: 30, right: 30, bottom: 30, left: 30 };
+    const margin = { top: 35, right: 30, bottom: 35, left: 30 };
     
     const svg = d3.select(elements.chartOverview)
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -932,13 +971,14 @@ function renderCityComparisonChart(selectedCity, provinceId) {
     
     const width = 380;
     const height = 400;
-    const margin = { top: 30, right: 20, bottom: 80, left: 70 };
+    const margin = { top: 40, right: 25, bottom: 85, left: 75 };
     
     const svg = d3.select(elements.chartComparison)
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -1072,11 +1112,19 @@ function updateStreetViewButton() {
         console.log('Setting buttons to Provincial View mode');
         btns.forEach(btn => {
             if (btn) {
-                btn.textContent = '🏛️ Provincial View';
+                btn.textContent = '🌌 Night Sky View';
                 btn.style.removeProperty('background');
                 btn.style.removeProperty('background-image');
             }
         });
+    }
+    
+    if (elements.btnStreetViewFloating) {
+        if (appState.selectedProvince || appState.selectedCity || appState.streetViewOpen) {
+            elements.btnStreetViewFloating.classList.remove('hidden');
+        } else {
+            elements.btnStreetViewFloating.classList.add('hidden');
+        }
     }
 }
 
@@ -1084,6 +1132,16 @@ function updateProvinceInfoPanel(province) {
     elements.provinceName.textContent = province.name;
     elements.provincePopulation.textContent = `Population: ${formatNumber(province.population)}`;
     elements.provinceCoordinates.textContent = `Center: ${province.center[1].toFixed(2)}°, ${province.center[0].toFixed(2)}°`;
+    if (elements.provinceRegion) {
+        const regionName = getRegionNameForProvince(province.id);
+        if (regionName) {
+            elements.provinceRegion.textContent = `Region: ${regionName}`;
+            elements.provinceRegion.classList.remove('hidden');
+        } else {
+            elements.provinceRegion.textContent = '';
+            elements.provinceRegion.classList.add('hidden');
+        }
+    }
 }
 
 function updateDataPanel(provinceId) {
@@ -1125,68 +1183,137 @@ function updateDataPanel(provinceId) {
         elements.statPeakYear.textContent = formatPercentage(metrics.growth2022_2023);
     }
     
+    renderProvinceOverview(provinceId, metrics);
     renderCharts(metrics, provinceId);
 }
 
 function updateLegend() {
     const dataType = getCurrentDataType();
+    const scope = getCurrentDataScope();
+    const scopeLabel = scope === 'region'
+        ? 'regional averages'
+        : (dataType === 'income' ? 'provincial averages' : 'provincial totals');
+    
+    // Update scope indicator
+    if (elements.scopeIndicator) {
+        elements.scopeIndicator.textContent = scope === 'region' ? 'Regional' : 'Provincial';
+        if (scope === 'region') {
+            elements.scopeIndicator.classList.add('regional');
+        } else {
+            elements.scopeIndicator.classList.remove('regional');
+        }
+    }
     
     if (dataType === 'income') {
         elements.legendTitle.textContent = 'Income Color Legend';
-        elements.legendNote.textContent = 'Province colors based on average income';
+        elements.legendNote.textContent = `Map colors reflect ${scopeLabel} for household income`;
         
-        elements.legendItems.innerHTML = `
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #00d9ff;"></span>
-                <span>Very High ($60k+)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #0070f3;"></span>
-                <span>High ($50k-$60k)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #7928ca;"></span>
-                <span>Moderate ($40k-$50k)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #f81ce5;"></span>
-                <span>Low ($30k-$40k)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #ff0080;"></span>
-                <span>Very Low (<$30k)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #666666;"></span>
-                <span>No Data (N/A)</span>
-            </div>
-        `;
+        if (scope === 'region') {
+            // Regional income ranges
+            elements.legendItems.innerHTML = `
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                    <span>Very High ($58k+)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #0070f3;"></span>
+                    <span>High ($52k-$58k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #7928ca;"></span>
+                    <span>Moderate ($46k-$52k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                    <span>Low ($40k-$46k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #ff0080;"></span>
+                    <span>Very Low (<$40k)</span>
+                </div>
+            `;
+        } else {
+            // Provincial income ranges
+            elements.legendItems.innerHTML = `
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                    <span>Very High ($60k+)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #0070f3;"></span>
+                    <span>High ($50k-$60k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #7928ca;"></span>
+                    <span>Moderate ($40k-$50k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                    <span>Low ($30k-$40k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #ff0080;"></span>
+                    <span>Very Low (<$30k)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #666666;"></span>
+                    <span>No Data (N/A)</span>
+                </div>
+            `;
+        }
     } else {
         elements.legendTitle.textContent = 'GDP Color Legend';
-        elements.legendNote.textContent = 'Province colors based on GDP';
+        elements.legendNote.textContent = `Map colors reflect ${scopeLabel} for GDP`;
         
-        elements.legendItems.innerHTML = `
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #00d9ff;"></span>
-                <span>Very High ($300B+)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #0070f3;"></span>
-                <span>High ($100B-$300B)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #7928ca;"></span>
-                <span>Moderate ($50B-$100B)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #f81ce5;"></span>
-                <span>Low ($10B-$50B)</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-marker" style="background-color: #ff0080;"></span>
-                <span>Very Low (<$10B)</span>
-            </div>
-        `;
+        if (scope === 'region') {
+            // Regional GDP ranges (much larger totals)
+            elements.legendItems.innerHTML = `
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                    <span>Very High ($1T+)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #0070f3;"></span>
+                    <span>High ($400B-$1T)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #7928ca;"></span>
+                    <span>Moderate ($200B-$400B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                    <span>Low ($50B-$200B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #ff0080;"></span>
+                    <span>Very Low (<$50B)</span>
+                </div>
+            `;
+        } else {
+            // Provincial GDP ranges
+            elements.legendItems.innerHTML = `
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                    <span>Very High ($300B+)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #0070f3;"></span>
+                    <span>High ($100B-$300B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #7928ca;"></span>
+                    <span>Moderate ($50B-$100B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                    <span>Low ($10B-$50B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #ff0080;"></span>
+                    <span>Very Low (<$10B)</span>
+                </div>
+            `;
+        }
     }
 }
 
@@ -1224,33 +1351,44 @@ function switchDataType(newDataType) {
     }
 }
 
+function switchDataScope(newScope) {
+    console.log(`🗺️ Switching heatmap scope to: ${newScope}`);
+    const updated = setCurrentDataScope(newScope);
+    if (!updated) return;
+    
+    updateLegend();
+    updateMapColors();
+    
+    if (appState.selectedProvince) {
+        updateDataPanel(appState.selectedProvince);
+    }
+}
+
 function updateMapColors() {
     if (!elements.map) return;
     
     const dataType = getCurrentDataType();
+    const currentScope = getCurrentDataScope();
     
     const source = elements.map.getSource('province-polygons');
     if (!source || !source._data) return;
     
     source._data.features = source._data.features.map(feature => {
         const provinceId = feature.properties.id;
-        let dataValue = 0;
+        const dataValue = getScopedValueForProvince(provinceId);
         let color = '#ff0080';
         
         if (dataType === 'income') {
-            const provinceData = CANADIAN_PROVINCES_INCOME.find(p => p.id === provinceId);
-            dataValue = provinceData?.averageIncome || 0;
-            color = provinceData?.averageIncome ? getIncomeColor(dataValue) : '#666666';
+            color = dataValue ? getDataColor(dataValue, currentScope) : '#666666';
         } else {
-            const provinceData = CANADIAN_PROVINCES_GDP.find(p => p.id === provinceId);
-            dataValue = provinceData?.gdp2023 || 0;
-            color = getGDPColor(dataValue);
+            color = dataValue ? getDataColor(dataValue, currentScope) : '#ff0080';
         }
         
         return {
             ...feature,
             properties: {
                 ...feature.properties,
+                region: getRegionNameForProvince(provinceId),
                 color: color,
                 dataValue: dataValue
             }
@@ -1273,6 +1411,121 @@ function renderCharts(metrics, provinceId) {
         renderTrendChart(metrics);
         renderComparisonChart(metrics);
     }
+}
+
+function renderProvinceOverview(provinceId, metrics) {
+    if (!elements.chartOverview) return;
+    const province = getProvinceById(provinceId);
+    if (!province) return;
+    
+    elements.chartOverview.innerHTML = '';
+    
+    const dataType = getCurrentDataType();
+    const regionName = getRegionNameForProvince(provinceId);
+    const regionMetrics = getRegionMetricsForProvince(provinceId, dataType);
+    const cards = [];
+    
+    if (dataType === 'income') {
+        const averageIncome = metrics.averageIncome ?? province.averageIncome ?? null;
+        const medianIncome = metrics.medianIncome ?? province.medianIncome ?? null;
+        const regionAverage = regionMetrics?.averageIncome ?? null;
+        const regionGap = regionAverage !== null && averageIncome !== null
+            ? averageIncome - regionAverage
+            : null;
+        
+        cards.push({
+            label: 'Avg Income',
+            value: averageIncome !== null ? formatIncome(averageIncome) : 'N/A',
+            caption: 'Weighted average respondent income'
+        });
+        cards.push({
+            label: 'Median Income',
+            value: medianIncome ? formatIncome(medianIncome) : 'N/A',
+            caption: 'Middle of distribution'
+        });
+        cards.push({
+            label: 'Region Avg',
+            value: regionAverage ? formatIncome(regionAverage) : 'N/A',
+            caption: regionName ? `${regionName} households` : 'Regional benchmark'
+        });
+        cards.push({
+            label: 'Gap vs Region',
+            value: regionGap !== null ? `${regionGap >= 0 ? '+' : '-'}${formatIncome(Math.abs(regionGap))}` : 'N/A',
+            caption: regionGap !== null
+                ? (regionGap >= 0 ? 'Above regional average' : 'Below regional average')
+                : 'No comparison data'
+        });
+    } else {
+        const gdp2023 = metrics.gdp2023 || 0;
+        const gdpPerCapita = metrics.gdpPerCapita2023 || 0;
+        const canadaTotal = CANADIAN_PROVINCES_GDP.reduce((sum, item) => sum + (item.gdp2023 || 0), 0);
+        const canadaShare = canadaTotal ? ((gdp2023 / canadaTotal) * 100) : 0;
+        const regionTotal = regionMetrics?.gdp2023 || 0;
+        const regionShare = regionTotal ? ((gdp2023 / regionTotal) * 100) : null;
+        
+        cards.push({
+            label: 'GDP 2023',
+            value: formatCurrency(gdp2023),
+            caption: 'Current dollars (millions)'
+        });
+        cards.push({
+            label: 'GDP per Capita',
+            value: formatIncome(gdpPerCapita),
+            caption: 'Economic output per resident'
+        });
+        cards.push({
+            label: 'Share of Canada',
+            value: `${canadaShare.toFixed(1)}%`,
+            caption: 'Portion of national GDP'
+        });
+        cards.push({
+            label: regionName ? `${regionName} Share` : 'Regional Share',
+            value: regionShare !== null ? `${regionShare.toFixed(1)}%` : 'N/A',
+            caption: regionShare !== null ? 'Of regional GDP' : 'No regional total'
+        });
+    }
+    
+    const cities = getCitiesForProvince(provinceId)
+        .filter(city => city.gdp)
+        .sort((a, b) => b.gdp - a.gdp)
+        .slice(0, 3);
+    
+    const cardsHtml = cards.map(card => `
+        <div class="overview-card">
+            <span class="overview-label">${card.label}</span>
+            <span class="overview-value">${card.value}</span>
+            <span class="overview-caption">${card.caption}</span>
+        </div>
+    `).join('');
+    
+    let citiesHtml = '';
+    if (cities.length) {
+        const cityItems = cities.map(city => `
+            <li>
+                <span>${city.name}</span>
+                <strong>$${(city.gdp / 1000).toFixed(1)}B</strong>
+            </li>
+        `).join('');
+        
+        citiesHtml = `
+            <div class="overview-cities">
+                <div class="overview-cities-header">
+                    <h4>Major City GDP Snapshot</h4>
+                    <span>Top ${cities.length} cities by GDP</span>
+                </div>
+                <ul>
+                    ${cityItems}
+                </ul>
+            </div>
+        `;
+    }
+    
+    elements.chartOverview.innerHTML = `
+        <div class="overview-grid">
+            ${cardsHtml}
+        </div>
+        ${citiesHtml}
+    `;
 }
 
 function renderIncomeBoxPlot(metrics, provinceId) {
@@ -1310,13 +1563,14 @@ function renderIncomeBoxPlot(metrics, provinceId) {
     
     const width = 380;
     const height = 280;
-    const margin = { top: 30, right: 30, bottom: 50, left: 70 };
+    const margin = { top: 35, right: 30, bottom: 55, left: 75 };
     
     const svg = d3.select(elements.chartTrend)
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -1463,13 +1717,14 @@ function renderTrendChart(metrics) {
     
     const width = 380;
     const height = 280;
-    const margin = { top: 30, right: 30, bottom: 50, left: 70 };
+    const margin = { top: 35, right: 30, bottom: 55, left: 75 };
     
     const svg = d3.select(elements.chartTrend)
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -1593,7 +1848,7 @@ function renderComparisonChart(metrics) {
     
     const width = 380;
     const height = 400;
-    const margin = { top: 30, right: 20, bottom: 60, left: 70 };
+    const margin = { top: 40, right: 25, bottom: 60, left: 75 };
     
     const abbreviateProvince = (name) => {
         const abbrevMap = {
@@ -1636,7 +1891,8 @@ function renderComparisonChart(metrics) {
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -1684,6 +1940,28 @@ function renderComparisonChart(metrics) {
         .attr('opacity', 0.8)
         .attr('stroke-dasharray', '4,4');
     
+    // Create tooltip element
+    let chartTooltip = d3.select('#chart-tooltip-comparison');
+    if (chartTooltip.empty()) {
+        chartTooltip = d3.select('body')
+            .append('div')
+            .attr('id', 'chart-tooltip-comparison')
+            .style('position', 'absolute')
+            .style('background', 'rgba(0, 0, 0, 0.95)')
+            .style('color', 'white')
+            .style('padding', '8px 12px')
+            .style('border-radius', '6px')
+            .style('font-size', '13px')
+            .style('font-weight', '600')
+            .style('pointer-events', 'none')
+            .style('opacity', 0)
+            .style('z-index', 10000)
+            .style('backdrop-filter', 'blur(10px)')
+            .style('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.5)')
+            .style('border', '1px solid rgba(255, 255, 255, 0.2)')
+            .style('transition', 'opacity 0.2s ease');
+    }
+    
     // Draw bars
     chart.selectAll('.bar')
         .data(dataWithDifferences)
@@ -1724,39 +2002,36 @@ function renderComparisonChart(metrics) {
                 .transition()
                 .duration(200)
                 .attr('opacity', 1);
+            
+            // Show tooltip
+            const tooltipText = d.difference === 0 
+                ? 'Baseline' 
+                : (() => {
+                    const diff = Math.abs(d.difference);
+                    const sign = d.difference >= 0 ? '+' : '-';
+                    if (diff >= 1000) return `${sign}$${(diff/1000).toFixed(1)}B`;
+                    return `${sign}$${diff.toFixed(0)}M`;
+                })();
+            
+            const chartRect = elements.chartComparison.getBoundingClientRect();
+            const barX = xScale(d.province) + xScale.bandwidth() / 2 + margin.left;
+            const barY = d.difference >= 0 ? yScale(d.difference) : baselineY;
+            
+            chartTooltip
+                .html(tooltipText)
+                .style('left', (chartRect.left + barX) + 'px')
+                .style('top', (chartRect.top + barY + margin.top - 35) + 'px')
+                .style('transform', 'translateX(-50%)')
+                .style('opacity', 1);
         })
         .on('mouseleave', function(event, d) {
             d3.select(this)
                 .transition()
                 .duration(200)
                 .attr('opacity', isSelected(d.province) ? 1 : 0.7);
-        });
-    
-    // Value labels
-    chart.selectAll('.value-label')
-        .data(dataWithDifferences.filter(d => Math.abs(d.difference) > maxDiff * 0.05 || isSelected(d.province)))
-        .join('text')
-        .attr('class', 'value-label')
-        .attr('x', d => xScale(d.province) + xScale.bandwidth() / 2)
-        .attr('y', d => {
-            if (d.difference >= 0) {
-                return yScale(d.difference) - 5;
-            } else {
-                return baselineY + 15;
-            }
-        })
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '9px')
-        .attr('font-weight', '700')
-        .attr('fill', d => isSelected(d.province) ? highlightColor : textColor)
-        .text(d => {
-            if (d.difference === 0) {
-                return 'Baseline';
-            }
-            const diff = Math.abs(d.difference);
-            const sign = d.difference >= 0 ? '+' : '-';
-            if (diff >= 1000) return `${sign}$${(diff/1000).toFixed(1)}B`;
-            return `${sign}$${diff.toFixed(0)}M`;
+            
+            // Hide tooltip
+            chartTooltip.style('opacity', 0);
         });
     
     const xAxis = chart.append('g')
@@ -1818,7 +2093,7 @@ function renderIncomeComparisonChart(metrics) {
     
     const width = 380;
     const height = 400;
-    const margin = { top: 30, right: 20, bottom: 60, left: 70 };
+    const margin = { top: 40, right: 25, bottom: 60, left: 75 };
     
     const abbreviateProvince = (name) => {
         const abbrevMap = {
@@ -1872,7 +2147,8 @@ function renderIncomeComparisonChart(metrics) {
         .append('svg')
         .attr('width', width)
         .attr('height', height)
-        .style('background', 'transparent');
+        .style('background', 'transparent')
+        .style('overflow', 'visible');
     
     const chart = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -1920,6 +2196,28 @@ function renderIncomeComparisonChart(metrics) {
         .attr('opacity', 0.8)
         .attr('stroke-dasharray', '4,4');
     
+    // Create tooltip element for income chart
+    let chartTooltipIncome = d3.select('#chart-tooltip-comparison-income');
+    if (chartTooltipIncome.empty()) {
+        chartTooltipIncome = d3.select('body')
+            .append('div')
+            .attr('id', 'chart-tooltip-comparison-income')
+            .style('position', 'absolute')
+            .style('background', 'rgba(0, 0, 0, 0.95)')
+            .style('color', 'white')
+            .style('padding', '8px 12px')
+            .style('border-radius', '6px')
+            .style('font-size', '13px')
+            .style('font-weight', '600')
+            .style('pointer-events', 'none')
+            .style('opacity', 0)
+            .style('z-index', 10000)
+            .style('backdrop-filter', 'blur(10px)')
+            .style('box-shadow', '0 4px 12px rgba(0, 0, 0, 0.5)')
+            .style('border', '1px solid rgba(255, 255, 255, 0.2)')
+            .style('transition', 'opacity 0.2s ease');
+    }
+    
     // Draw bars
     chart.selectAll('.bar')
         .data(dataWithDifferences)
@@ -1960,38 +2258,35 @@ function renderIncomeComparisonChart(metrics) {
                 .transition()
                 .duration(200)
                 .attr('opacity', 1);
+            
+            // Show tooltip
+            const tooltipText = d.difference === 0 
+                ? 'Baseline' 
+                : (() => {
+                    const diff = Math.abs(d.difference);
+                    const sign = d.difference >= 0 ? '+' : '-';
+                    return `${sign}${formatIncome(diff)}`;
+                })();
+            
+            const chartRect = elements.chartComparison.getBoundingClientRect();
+            const barX = xScale(d.province) + xScale.bandwidth() / 2 + margin.left;
+            const barY = d.difference >= 0 ? yScale(d.difference) : baselineY;
+            
+            chartTooltipIncome
+                .html(tooltipText)
+                .style('left', (chartRect.left + barX) + 'px')
+                .style('top', (chartRect.top + barY + margin.top - 35) + 'px')
+                .style('transform', 'translateX(-50%)')
+                .style('opacity', 1);
         })
         .on('mouseleave', function(event, d) {
             d3.select(this)
                 .transition()
                 .duration(200)
                 .attr('opacity', isSelected(d.province) ? 1 : 0.7);
-        });
-    
-    // Value labels
-    chart.selectAll('.value-label')
-        .data(dataWithDifferences.filter(d => Math.abs(d.difference) > maxDiff * 0.05 || isSelected(d.province)))
-        .join('text')
-        .attr('class', 'value-label')
-        .attr('x', d => xScale(d.province) + xScale.bandwidth() / 2)
-        .attr('y', d => {
-            if (d.difference >= 0) {
-                return yScale(d.difference) - 5;
-            } else {
-                return baselineY + 15;
-            }
-        })
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '9px')
-        .attr('font-weight', '700')
-        .attr('fill', d => isSelected(d.province) ? highlightColor : textColor)
-        .text(d => {
-            if (d.difference === 0) {
-                return 'Baseline';
-            }
-            const diff = Math.abs(d.difference);
-            const sign = d.difference >= 0 ? '+' : '-';
-            return `${sign}${formatIncome(diff)}`;
+            
+            // Hide tooltip
+            chartTooltipIncome.style('opacity', 0);
         });
     
     const xAxis = chart.append('g')
@@ -2806,6 +3101,10 @@ function setupEventListeners() {
     elements.dataTypeSelect?.addEventListener('change', (e) => {
         const newDataType = e.target.value;
         switchDataType(newDataType);
+    });
+    
+    elements.mapScopeSelect?.addEventListener('change', (e) => {
+        switchDataScope(e.target.value);
     });
     
     elements.btnCanadaView?.addEventListener('click', () => {

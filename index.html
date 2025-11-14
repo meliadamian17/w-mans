@@ -18,6 +18,11 @@
                     <h1>🍁 Canada Data Explorer</h1>
                     <p class="subtitle">Provincial GDP & Income data</p>
                 </div>
+                <div class="story-card" id="story-intro">
+                    <p class="story-eyebrow">Story spotlight</p>
+                    <h2>Track how regions fuel Canada’s economy.</h2>
+                    <p>Toggle GDP vs. income, flip between provincial and regional heatmaps, then dive into cities to see who punches above their weight.</p>
+                </div>
             </div>
 
 
@@ -30,6 +35,13 @@
                             <option value="income">Income Data</option>
                         </select>
                     </div>
+                    <div class="data-type-selector">
+                        <label for="map-scope-select">Heatmap Scope:</label>
+                        <select id="map-scope-select" class="data-type-select">
+                            <option value="province">Provincial</option>
+                            <option value="region">Regional</option>
+                        </select>
+                    </div>
                     <button id="btn-canada-view" class="btn-control" title="Zoom to Canada">
                         🇨🇦 Canada
                     </button>
@@ -40,7 +52,10 @@
             </div>
 
             <div id="legend-panel" class="legend-panel map-overlay bottom-left">
-                <h3 id="legend-title">GDP Color Legend</h3>
+                <div class="legend-header-row">
+                    <h3 id="legend-title">GDP Color Legend</h3>
+                    <span id="scope-indicator" class="scope-indicator">Provincial</span>
+                </div>
                 <div class="legend-items" id="legend-items">
                     <div class="legend-item">
                         <span class="legend-marker" style="background-color: #00d9ff;"></span>
@@ -75,10 +90,8 @@
                 </div>
                 <div class="panel-content">
                     <p id="province-population"></p>
+                    <p id="province-region" class="muted-text"></p>
                     <p id="province-coordinates"></p>
-                    <button id="btn-street-view-province-panel" class="btn-primary">
-                        🏛️ Provincial View
-                    </button>
                 </div>
             </div>
 
@@ -92,12 +105,6 @@
             <div class="panel-header">
                 <h2 id="panel-province-title">Province Data</h2>
                 <button id="btn-close-data-panel" class="btn-close">&times;</button>
-            </div>
-
-            <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color);">
-                <button id="btn-street-view-right-panel" class="btn-primary" style="width: 100%;">
-                    🏛️ Provincial View
-                </button>
             </div>
 
             <div class="tabs">
@@ -180,7 +187,7 @@
         </div>
 
         <button id="btn-street-view" class="btn-street-view-floating hidden">
-            🏛️ Provincial View
+            🌌 Night Sky View
         </button>
     </div>
 
