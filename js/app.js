@@ -139,25 +139,25 @@ const introSequence = [
         title: "Welcome to Canada 🍁",
         description: "Let's take you on a journey through Canada's economic landscape. From coast to coast, each province tells a unique story.",
         camera: { center: [-95.7129, 56.1304], zoom: 3, pitch: 0, bearing: 0 },
-        duration: 4500
+        duration: 6500
     },
     {
         title: "The Economic Powerhouses",
         description: "Ontario and Quebec dominate with their massive economies, contributing over 60% of Canada's GDP. Check out how Toronto and Montreal light up the map.",
         camera: { center: [-79.3832, 45.5019], zoom: 5.5, pitch: 35, bearing: -20 },
-        duration: 5000
+        duration: 6000
     },
     {
         title: "The West's Rising Stars",
         description: "Alberta's energy sector and BC's tech hub in Vancouver are punching way above their weight. Oil, gas, and innovation drive the western economy.",
         camera: { center: [-119.4960, 53.5461], zoom: 4.8, pitch: 30, bearing: 15 },
-        duration: 5000
+        duration: 6000
     },
     {
         title: "The Atlantic Perspective",
         description: "The Maritime provinces may be smaller in GDP, but they're rich in culture, fishing, and tight-knit communities that keep Canada connected.",
         camera: { center: [-63.5859, 46.2382], zoom: 5.2, pitch: 25, bearing: -30 },
-        duration: 4500
+        duration: 6000
     },
     {
         title: "Your Turn to Explore",
