@@ -1579,6 +1579,8 @@ function renderComparisonChart(metrics) {
     const highlightColor = '#00d9ff';
     const textColor = '#e5e7eb';
     const gridColor = '#374151';
+    const positiveColor = '#10b981';
+    const negativeColor = '#ef4444';
     
     const width = 380;
     const height = 400;
@@ -1605,6 +1607,22 @@ function renderComparisonChart(metrics) {
         return abbrevMap[name] || name.substring(0, 2).toUpperCase();
     };
     
+    const isSelected = (provinceName) => {
+        return provinceName === metrics.name || 
+               provinceName === (metrics.name + ' & Labrador').replace('Newfoundland', 'Newfoundland and Labrador');
+    };
+    
+    // Find the selected province's GDP as baseline
+    const selectedProvince = metrics.comparisonData.find(d => isSelected(d.province));
+    const baseline = selectedProvince ? selectedProvince.gdp : 0;
+    
+    // Calculate differences from baseline
+    const dataWithDifferences = metrics.comparisonData.map(d => ({
+        ...d,
+        difference: d.gdp - baseline,
+        originalValue: d.gdp
+    }));
+    
     const svg = d3.select(elements.chartComparison)
         .append('svg')
         .attr('width', width)
@@ -1617,19 +1635,24 @@ function renderComparisonChart(metrics) {
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
     
-    const barWidth = innerWidth / metrics.comparisonData.length - 4;
-    
     const xScale = d3.scaleBand()
-        .domain(metrics.comparisonData.map(d => d.province))
+        .domain(dataWithDifferences.map(d => d.province))
         .range([0, innerWidth])
         .padding(0.15);
     
+    // Y scale for differences (can be positive or negative)
+    const maxDiff = Math.max(...dataWithDifferences.map(d => Math.abs(d.difference)));
     const yScale = d3.scaleLinear()
-        .domain([0, Math.max(...metrics.comparisonData.map(d => d.gdp)) * 1.15])
+        .domain([-maxDiff * 1.15, maxDiff * 1.15])
         .range([innerHeight, 0]);
     
+    // Baseline at y=0
+    const baselineY = yScale(0);
+    
+    // Draw grid lines
+    const yTicks = yScale.ticks(8);
     chart.selectAll('.grid-line')
-        .data(yScale.ticks(6))
+        .data(yTicks)
         .join('line')
         .attr('class', 'grid-line')
         .attr('x1', 0)
@@ -1638,26 +1661,45 @@ function renderComparisonChart(metrics) {
         .attr('y2', d => yScale(d))
         .attr('stroke', gridColor)
         .attr('stroke-width', 1)
-        .attr('opacity', 0.3);
+        .attr('opacity', d => d === 0 ? 0.6 : 0.3)
+        .attr('stroke-dasharray', d => d === 0 ? '0' : '2,2');
     
-    const isSelected = (provinceName) => {
-        return provinceName === metrics.name || 
-               provinceName === (metrics.name + ' & Labrador').replace('Newfoundland', 'Newfoundland and Labrador');
-    };
+    // Draw baseline reference line
+    chart.append('line')
+        .attr('x1', 0)
+        .attr('x2', innerWidth)
+        .attr('y1', baselineY)
+        .attr('y2', baselineY)
+        .attr('stroke', highlightColor)
+        .attr('stroke-width', 2)
+        .attr('opacity', 0.8)
+        .attr('stroke-dasharray', '4,4');
     
+    // Draw bars
     chart.selectAll('.bar')
-        .data(metrics.comparisonData)
+        .data(dataWithDifferences)
         .join('rect')
         .attr('class', 'bar')
         .attr('x', d => xScale(d.province))
-        .attr('y', d => yScale(d.gdp))
         .attr('width', xScale.bandwidth())
-        .attr('height', d => innerHeight - yScale(d.gdp))
+        .attr('y', d => {
+            if (d.difference >= 0) {
+                return yScale(d.difference);
+            } else {
+                return baselineY;
+            }
+        })
+        .attr('height', d => {
+            if (d.difference === 0) {
+                return 2; // Small line for baseline province
+            }
+            return Math.abs(yScale(d.difference) - baselineY);
+        })
         .attr('fill', d => {
             if (isSelected(d.province)) {
                 return highlightColor;
             }
-            return getGDPColor(d.gdp);
+            return d.difference >= 0 ? positiveColor : negativeColor;
         })
         .attr('rx', 3)
         .attr('ry', 3)
@@ -1681,23 +1723,35 @@ function renderComparisonChart(metrics) {
                 .attr('opacity', isSelected(d.province) ? 1 : 0.7);
         });
     
+    // Value labels
     chart.selectAll('.value-label')
-        .data(metrics.comparisonData.filter(d => d.gdp > 50000 || isSelected(d.province)))
+        .data(dataWithDifferences.filter(d => Math.abs(d.difference) > maxDiff * 0.05 || isSelected(d.province)))
         .join('text')
         .attr('class', 'value-label')
         .attr('x', d => xScale(d.province) + xScale.bandwidth() / 2)
-        .attr('y', d => yScale(d.gdp) - 5)
+        .attr('y', d => {
+            if (d.difference >= 0) {
+                return yScale(d.difference) - 5;
+            } else {
+                return baselineY + 15;
+            }
+        })
         .attr('text-anchor', 'middle')
         .attr('font-size', '9px')
         .attr('font-weight', '700')
         .attr('fill', d => isSelected(d.province) ? highlightColor : textColor)
         .text(d => {
-            if (d.gdp >= 1000) return `$${(d.gdp/1000).toFixed(0)}B`;
-            return `$${d.gdp.toFixed(0)}M`;
+            if (d.difference === 0) {
+                return 'Baseline';
+            }
+            const diff = Math.abs(d.difference);
+            const sign = d.difference >= 0 ? '+' : '-';
+            if (diff >= 1000) return `${sign}$${(diff/1000).toFixed(1)}B`;
+            return `${sign}$${diff.toFixed(0)}M`;
         });
     
     const xAxis = chart.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
+        .attr('transform', `translate(0,${baselineY})`)
         .call(d3.axisBottom(xScale)
             .tickFormat(d => abbreviateProvince(d))
             .tickSize(0)
@@ -1706,20 +1760,24 @@ function renderComparisonChart(metrics) {
     xAxis.selectAll('text')
         .attr('font-size', '11px')
         .attr('font-weight', d => isSelected(d) ? '700' : '500')
-        .attr('fill', d => isSelected(d) ? highlightColor : textColor);
+        .attr('fill', d => isSelected(d) ? highlightColor : textColor)
+        .attr('transform', 'translate(0, 5)');
     
     xAxis.select('.domain')
-        .attr('stroke', gridColor);
+        .attr('stroke', 'none');
     
+    // Y axis on the left
     const yAxis = chart.append('g')
         .call(d3.axisLeft(yScale)
-            .ticks(6)
+            .ticks(8)
             .tickSize(0)
             .tickPadding(10)
             .tickFormat(d => {
-                if (d >= 1000) return `$${(d/1000).toFixed(0)}B`;
-                if (d === 0) return '$0';
-                return `$${d}M`;
+                if (d === 0) return 'Baseline';
+                const absValue = Math.abs(d);
+                const sign = d >= 0 ? '+' : '-';
+                if (absValue >= 1000) return `${sign}$${(absValue/1000).toFixed(1)}B`;
+                return `${sign}$${absValue.toFixed(0)}M`;
             }));
     
     yAxis.selectAll('text')
@@ -1728,6 +1786,16 @@ function renderComparisonChart(metrics) {
     
     yAxis.select('.domain')
         .attr('stroke', gridColor);
+    
+    // Title
+    chart.append('text')
+        .attr('x', innerWidth / 2)
+        .attr('y', -10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '14px')
+        .attr('font-weight', '600')
+        .attr('fill', textColor)
+        .text(`GDP Difference from ${selectedProvince ? abbreviateProvince(selectedProvince.province) : 'Baseline'}`);
 }
 
 function renderIncomeComparisonChart(metrics) {
@@ -1736,6 +1804,8 @@ function renderIncomeComparisonChart(metrics) {
     const highlightColor = '#00d9ff';
     const textColor = '#e5e7eb';
     const gridColor = '#374151';
+    const positiveColor = '#10b981';
+    const negativeColor = '#ef4444';
     
     const width = 380;
     const height = 400;
@@ -1762,6 +1832,33 @@ function renderIncomeComparisonChart(metrics) {
         return abbrevMap[name] || name.substring(0, 2).toUpperCase();
     };
     
+    const isSelected = (provinceName) => {
+        return provinceName === metrics.name || 
+               provinceName === (metrics.name + ' & Labrador').replace('Newfoundland', 'Newfoundland and Labrador');
+    };
+    
+    // Find the selected province's income as baseline
+    const selectedProvince = metrics.comparisonData.find(d => isSelected(d.province));
+    const baseline = selectedProvince && selectedProvince.income ? selectedProvince.income : 0;
+    
+    // Calculate differences from baseline (only for provinces with income data)
+    const dataWithDifferences = metrics.comparisonData.map(d => {
+        if (!d.income) {
+            return {
+                ...d,
+                difference: null,
+                originalValue: null
+            };
+        }
+        return {
+            ...d,
+            difference: d.income - baseline,
+            originalValue: d.income
+        };
+    }).filter(d => d.income !== null && d.income !== undefined); // Only show provinces with data
+    
+    if (dataWithDifferences.length === 0) return;
+    
     const svg = d3.select(elements.chartComparison)
         .append('svg')
         .attr('width', width)
@@ -1775,16 +1872,23 @@ function renderIncomeComparisonChart(metrics) {
     const innerHeight = height - margin.top - margin.bottom;
     
     const xScale = d3.scaleBand()
-        .domain(metrics.comparisonData.map(d => d.province))
+        .domain(dataWithDifferences.map(d => d.province))
         .range([0, innerWidth])
         .padding(0.15);
     
+    // Y scale for differences (can be positive or negative)
+    const maxDiff = Math.max(...dataWithDifferences.map(d => Math.abs(d.difference)));
     const yScale = d3.scaleLinear()
-        .domain([0, Math.max(...metrics.comparisonData.map(d => d.income || 0)) * 1.15])
+        .domain([-maxDiff * 1.15, maxDiff * 1.15])
         .range([innerHeight, 0]);
     
+    // Baseline at y=0
+    const baselineY = yScale(0);
+    
+    // Draw grid lines
+    const yTicks = yScale.ticks(8);
     chart.selectAll('.grid-line')
-        .data(yScale.ticks(6))
+        .data(yTicks)
         .join('line')
         .attr('class', 'grid-line')
         .attr('x1', 0)
@@ -1793,26 +1897,45 @@ function renderIncomeComparisonChart(metrics) {
         .attr('y2', d => yScale(d))
         .attr('stroke', gridColor)
         .attr('stroke-width', 1)
-        .attr('opacity', 0.3);
+        .attr('opacity', d => d === 0 ? 0.6 : 0.3)
+        .attr('stroke-dasharray', d => d === 0 ? '0' : '2,2');
     
-    const isSelected = (provinceName) => {
-        return provinceName === metrics.name || 
-               provinceName === (metrics.name + ' & Labrador').replace('Newfoundland', 'Newfoundland and Labrador');
-    };
+    // Draw baseline reference line
+    chart.append('line')
+        .attr('x1', 0)
+        .attr('x2', innerWidth)
+        .attr('y1', baselineY)
+        .attr('y2', baselineY)
+        .attr('stroke', highlightColor)
+        .attr('stroke-width', 2)
+        .attr('opacity', 0.8)
+        .attr('stroke-dasharray', '4,4');
     
+    // Draw bars
     chart.selectAll('.bar')
-        .data(metrics.comparisonData)
+        .data(dataWithDifferences)
         .join('rect')
         .attr('class', 'bar')
         .attr('x', d => xScale(d.province))
-        .attr('y', d => yScale(d.income))
         .attr('width', xScale.bandwidth())
-        .attr('height', d => innerHeight - yScale(d.income))
+        .attr('y', d => {
+            if (d.difference >= 0) {
+                return yScale(d.difference);
+            } else {
+                return baselineY;
+            }
+        })
+        .attr('height', d => {
+            if (d.difference === 0) {
+                return 2; // Small line for baseline province
+            }
+            return Math.abs(yScale(d.difference) - baselineY);
+        })
         .attr('fill', d => {
             if (isSelected(d.province)) {
                 return highlightColor;
             }
-            return d.income ? getIncomeColor(d.income) : '#666666';
+            return d.difference >= 0 ? positiveColor : negativeColor;
         })
         .attr('rx', 3)
         .attr('ry', 3)
@@ -1836,20 +1959,34 @@ function renderIncomeComparisonChart(metrics) {
                 .attr('opacity', isSelected(d.province) ? 1 : 0.7);
         });
     
+    // Value labels
     chart.selectAll('.value-label')
-        .data(metrics.comparisonData.filter(d => (d.income && d.income > 30000) || isSelected(d.province)))
+        .data(dataWithDifferences.filter(d => Math.abs(d.difference) > maxDiff * 0.05 || isSelected(d.province)))
         .join('text')
         .attr('class', 'value-label')
         .attr('x', d => xScale(d.province) + xScale.bandwidth() / 2)
-        .attr('y', d => yScale(d.income || 0) - 5)
+        .attr('y', d => {
+            if (d.difference >= 0) {
+                return yScale(d.difference) - 5;
+            } else {
+                return baselineY + 15;
+            }
+        })
         .attr('text-anchor', 'middle')
         .attr('font-size', '9px')
         .attr('font-weight', '700')
         .attr('fill', d => isSelected(d.province) ? highlightColor : textColor)
-        .text(d => d.income ? formatIncome(d.income) : 'N/A');
+        .text(d => {
+            if (d.difference === 0) {
+                return 'Baseline';
+            }
+            const diff = Math.abs(d.difference);
+            const sign = d.difference >= 0 ? '+' : '-';
+            return `${sign}${formatIncome(diff)}`;
+        });
     
     const xAxis = chart.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
+        .attr('transform', `translate(0,${baselineY})`)
         .call(d3.axisBottom(xScale)
             .tickFormat(d => abbreviateProvince(d))
             .tickSize(0)
@@ -1858,17 +1995,24 @@ function renderIncomeComparisonChart(metrics) {
     xAxis.selectAll('text')
         .attr('font-size', '11px')
         .attr('font-weight', d => isSelected(d) ? '700' : '500')
-        .attr('fill', d => isSelected(d) ? highlightColor : textColor);
+        .attr('fill', d => isSelected(d) ? highlightColor : textColor)
+        .attr('transform', 'translate(0, 5)');
     
     xAxis.select('.domain')
-        .attr('stroke', gridColor);
+        .attr('stroke', 'none');
     
+    // Y axis on the left
     const yAxis = chart.append('g')
         .call(d3.axisLeft(yScale)
-            .ticks(6)
+            .ticks(8)
             .tickSize(0)
             .tickPadding(10)
-            .tickFormat(d => formatIncome(d)));
+            .tickFormat(d => {
+                if (d === 0) return 'Baseline';
+                const absValue = Math.abs(d);
+                const sign = d >= 0 ? '+' : '-';
+                return `${sign}${formatIncome(absValue)}`;
+            }));
     
     yAxis.selectAll('text')
         .attr('font-size', '11px')
@@ -1876,6 +2020,16 @@ function renderIncomeComparisonChart(metrics) {
     
     yAxis.select('.domain')
         .attr('stroke', gridColor);
+    
+    // Title
+    chart.append('text')
+        .attr('x', innerWidth / 2)
+        .attr('y', -10)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '14px')
+        .attr('font-weight', '600')
+        .attr('fill', textColor)
+        .text(`Income Difference from ${selectedProvince ? abbreviateProvince(selectedProvince.province) : 'Baseline'}`);
 }
 
 
