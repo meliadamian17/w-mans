@@ -139,7 +139,7 @@ const introSequence = [
         title: "Welcome to Canada 🍁",
         description: "Let's take you on a journey through Canada's economic landscape. From coast to coast, each province tells a unique story.",
         camera: { center: [-95.7129, 56.1304], zoom: 3, pitch: 0, bearing: 0 },
-        duration: 8500
+        duration: 5500
     },
     {
         title: "The Economic Powerhouses",
