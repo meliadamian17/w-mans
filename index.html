@@ -3,64 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canada Data Explorer - Demographics & Urban Insights</title>
+    <title>Canada GDP Explorer - Provincial Economic Data</title>
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.css">
 </head>
 <body>
     <div id="app">
+        <!-- Intro Overlay -->
+        <div id="intro-overlay" class="intro-overlay">
+            <div class="intro-content">
+                <div class="intro-text-container">
+                    <h1 class="intro-title" id="intro-title"></h1>
+                    <p class="intro-description" id="intro-description"></p>
+                </div>
+                <button id="btn-skip-intro" class="btn-skip-intro">Skip Intro →</button>
+            </div>
+        </div>
+        
         <div id="map-container">
             <div id="map"></div>
             
             <div class="map-overlay top-left">
                 <div class="logo">
-                    <h1>🍁 Canada Explorer</h1>
-                    <p class="subtitle">Explore demographics & urban data</p>
+                    <h1>🍁 Canada Data Explorer</h1>
+                    <p class="subtitle">Provincial GDP & Income data</p>
+                </div>
+                <div class="story-card" id="story-intro">
+                    <p class="story-eyebrow">Story spotlight</p>
+                    <h2>Track how regions fuel Canada’s economy.</h2>
+                    <p>Toggle GDP vs. income, flip between provincial and regional heatmaps, then dive into cities to see who punches above their weight.</p>
                 </div>
             </div>
 
-            <div id="onboarding-tooltip" class="onboarding-tooltip">
-                <p><strong>👋 Welcome!</strong> Click a city marker to explore data</p>
-                <button id="dismiss-tooltip" class="btn-small">Got it</button>
-            </div>
 
             <div class="map-overlay top-right">
                 <div class="controls-group">
-                    <button id="btn-reset-view" class="btn-control" title="Reset to global view">
-                        🌍 Global View
-                    </button>
+                    <div class="data-type-selector">
+                        <label for="data-type-select">Data Type:</label>
+                        <select id="data-type-select" class="data-type-select">
+                            <option value="gdp">GDP Data</option>
+                            <option value="income">Income Data</option>
+                        </select>
+                    </div>
+                    <div class="data-type-selector">
+                        <label for="map-scope-select">Heatmap Scope:</label>
+                        <select id="map-scope-select" class="data-type-select">
+                            <option value="province">Provincial</option>
+                            <option value="region">Regional</option>
+                        </select>
+                    </div>
                     <button id="btn-canada-view" class="btn-control" title="Zoom to Canada">
                         🇨🇦 Canada
                     </button>
-                    <button id="btn-toggle-legend" class="btn-control" title="Toggle legend">
-                        📊 Legend
+                    <button id="btn-toggle-legend" class="btn-control active" title="Toggle legend">
+                        📊 Legend <span class="toggle-indicator">●</span>
                     </button>
                 </div>
             </div>
 
-            <div id="legend-panel" class="legend-panel hidden">
-                <h3>Map Elements</h3>
-                <div class="legend-item">
-                    <span class="legend-marker"></span>
-                    <span>Major Cities</span>
+            <div id="legend-panel" class="legend-panel map-overlay bottom-left">
+                <div class="legend-header-row">
+                    <h3 id="legend-title">GDP Color Legend</h3>
+                    <span id="scope-indicator" class="scope-indicator">Provincial</span>
                 </div>
-                <div class="legend-item">
-                    <span class="legend-marker street-view"></span>
-                    <span>Cities with Street View</span>
+                <div class="legend-items" id="legend-items">
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                        <span>Very High ($300B+)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #0070f3;"></span>
+                        <span>High ($100B-$300B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #7928ca;"></span>
+                        <span>Moderate ($50B-$100B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                        <span>Low ($10B-$50B)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-marker" style="background-color: #ff0080;"></span>
+                        <span>Very Low (<$10B)</span>
+                    </div>
+                </div>
+                <div class="legend-note">
+                    <small id="legend-note">Province colors based on GDP</small>
                 </div>
             </div>
 
-            <div id="city-info-panel" class="info-panel top-left hidden">
+            <div id="province-info-panel" class="info-panel top-left hidden">
                 <div class="panel-header">
-                    <h3 id="city-name">Select a city</h3>
-                    <button id="btn-close-city-panel" class="btn-close">&times;</button>
+                    <h3 id="province-name">Select a province</h3>
+                    <button id="btn-close-province-panel" class="btn-close">&times;</button>
                 </div>
                 <div class="panel-content">
-                    <p id="city-province"></p>
-                    <p id="city-coordinates"></p>
-                    <button id="btn-street-view-city-panel" class="btn-primary hidden">
-                        📷 Enter Street View
+                    <p id="province-population"></p>
+                    <p id="province-region" class="muted-text"></p>
+                    <p id="province-coordinates"></p>
+                    <button id="btn-street-view-province-panel" class="btn-night-sky" style="margin-top: 1rem;">
+                        🌌 View Night Sky
                     </button>
                 </div>
             </div>
@@ -73,88 +117,100 @@
 
         <aside id="data-panel" class="data-panel hidden">
             <div class="panel-header">
-                <h2 id="panel-city-title">City Data</h2>
+                <h2 id="panel-province-title">Province Data</h2>
                 <button id="btn-close-data-panel" class="btn-close">&times;</button>
-            </div>
-
-            <div style="padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color);">
-                <button id="btn-street-view-right-panel" class="btn-primary" style="width: 100%;">
-                    📷 Enter Street View
-                </button>
             </div>
 
             <div class="tabs">
                 <button class="tab-btn active" data-tab="overview">📈 Overview</button>
-                <button class="tab-btn" data-tab="income">💰 Income</button>
-                <button class="tab-btn" data-tab="employment">💼 Employment</button>
-                <button class="tab-btn" data-tab="demographics">👥 Demographics</button>
+                <button class="tab-btn" data-tab="trend" id="tab-trend-btn">📊 GDP Trend</button>
+                <button class="tab-btn" data-tab="comparison">🔍 Comparison</button>
             </div>
 
             <div class="tab-content">
                 <div id="tab-overview" class="tab-pane active">
                     <div class="stats-grid">
                         <div class="stat-card">
-                            <span class="stat-label">Population</span>
-                            <span class="stat-value" id="stat-population">—</span>
+                            <span class="stat-label" id="stat-label-1">GDP 2023</span>
+                            <span class="stat-value" id="stat-current-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Median Income</span>
-                            <span class="stat-value" id="stat-median-income">—</span>
+                            <span class="stat-label" id="stat-label-2">GDP 2022</span>
+                            <span class="stat-value" id="stat-avg-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Unemployment Rate</span>
-                            <span class="stat-value" id="stat-unemployment">—</span>
+                            <span class="stat-label" id="stat-label-3">GDP 2021</span>
+                            <span class="stat-value" id="stat-peak-rate">—</span>
                         </div>
                         <div class="stat-card">
-                            <span class="stat-label">Avg. Age</span>
-                            <span class="stat-value" id="stat-age">—</span>
+                            <span class="stat-label" id="stat-label-4">Growth 2022-23</span>
+                            <span class="stat-value" id="stat-peak-year">—</span>
                         </div>
                     </div>
                     <div id="chart-overview" class="chart-container"></div>
                 </div>
 
-                <div id="tab-income" class="tab-pane">
-                    <h4>Household Income Distribution</h4>
-                    <div id="chart-income" class="chart-container"></div>
-                    <p class="chart-note">Based on Census Metropolitan Area data</p>
+                <div id="tab-trend" class="tab-pane">
+                    <h4 id="trend-title">GDP Trend (2021-2023)</h4>
+                    <div id="chart-trend" class="chart-container"></div>
+                    <p class="chart-note" id="trend-note">3-year GDP trend</p>
                 </div>
 
-                <div id="tab-employment" class="tab-pane">
-                    <h4>Employment Metrics</h4>
-                    <div id="chart-employment" class="chart-container"></div>
-                    <p class="chart-note">Labor force participation and unemployment rates</p>
-                </div>
-
-                <div id="tab-demographics" class="tab-pane">
-                    <h4>Population Demographics</h4>
-                    <div id="chart-demographics" class="chart-container"></div>
-                    <p class="chart-note">Age distribution and diversity metrics</p>
+                <div id="tab-comparison" class="tab-pane">
+                    <h4 id="comparison-title">Provincial GDP Comparison</h4>
+                    <div id="chart-comparison" class="chart-container"></div>
+                    <p class="chart-note" id="comparison-note">GDP by province (2023)</p>
                 </div>
             </div>
 
             <div class="panel-footer">
+                <button id="btn-street-view-right-panel" class="btn-night-sky">
+                    🌌 View Night Sky
+                </button>
                 <p class="data-source">Data source: Statistics Canada</p>
             </div>
         </aside>
 
         <div id="street-view-container" class="street-view-overlay hidden">
-            <button id="btn-exit-street-view" class="btn-exit-street-view">
-                ✕ Exit Street View
+            <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="Hide sidebar">
+                ▶
             </button>
             <div id="street-view-canvas"></div>
+            <div id="night-sky-legend" class="night-sky-legend hidden">
+                <h3>Night Sky Legend</h3>
+                <div class="legend-section">
+                    <h4>Brightness</h4>
+                    <p>Star glow intensity follows property price.</p>
+                </div>
+                <div class="legend-section">
+                    <h4>Shapes · Property Types</h4>
+                    <ul class="legend-list">
+                        <li><span class="shape-icon star"></span>Single Family</li>
+                        <li><span class="shape-icon circle"></span>Condo</li>
+                        <li><span class="shape-icon square"></span>Duplex</li>
+                        <li><span class="shape-icon triangle"></span>Townhouse</li>
+                        <li><span class="shape-icon diamond"></span>Apartment / Other</li>
+                    </ul>
+                </div>
+                <div class="legend-section">
+                    <h4>Rays</h4>
+                    <p>More bedrooms & bathrooms add longer, brighter rays.</p>
+                </div>
+            </div>
+            <div id="night-sky-tooltip" class="night-sky-tooltip hidden"></div>
             <div class="street-view-controls">
                 <p id="street-view-location"></p>
             </div>
         </div>
 
-        <button id="btn-street-view" class="btn-street-view-floating hidden">
-            📷 Street View
+        <button id="btn-street-view-floating" class="btn-street-view-floating hidden">
+            🌌 Night Sky View
         </button>
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script src="https://unpkg.com/d3@7"></script>
     <script src="https://unpkg.com/mapillary-js@4.1.1/dist/mapillary.js"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="./js/app.js"></script>
 </body>
 </html>
