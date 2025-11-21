@@ -461,7 +461,7 @@ function buildRegionIncomeMetrics(incomeData) {
 
 export async function loadGDPData() {
     try {
-        const response = await fetch('../data/province-level-gdp.csv');
+        const response = await fetch('./data/province-level-gdp.csv');
         const csvText = await response.text();
         
         const gdpData = parseGDPCSV(csvText);
@@ -481,7 +481,7 @@ export async function loadGDPData() {
 
 export async function loadIncomeData() {
     try {
-        const response = await fetch('../data/province-level-income.csv');
+        const response = await fetch('./data/province-level-income.csv');
         const csvText = await response.text();
         
         const incomeData = parseIncomeCSV(csvText);
@@ -501,7 +501,7 @@ export async function loadIncomeData() {
 
 export async function loadCityData() {
     try {
-        const response = await fetch('../data/city-gdp-data.json');
+        const response = await fetch('./data/city-gdp-data.json');
         const data = await response.json();
         
         CITY_DATA = data.cities;
