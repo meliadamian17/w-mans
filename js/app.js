@@ -2704,7 +2704,7 @@ async function loadRealEstateData() {
     }
     
     try {
-        const response = await fetch('../data/cleaned-real-estate-data.csv');
+        const response = await fetch('./data/cleaned-real-estate-data.csv');
         const csvText = await response.text();
         const lines = csvText.trim().split('\n');
         const headers = parseCSVLine(lines[0]);
