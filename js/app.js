@@ -66,6 +66,7 @@ const appState = {
     nightSkyMouseMoveHandler: null,
     nightSkyMouseLeaveHandler: null,
     legendPanelWasHidden: false,
+    canadaGeoJSON: null,
 };
 
 const elements = {
@@ -432,6 +433,8 @@ async function addProvincePolygons(map) {
             };
         });
         
+        appState.canadaGeoJSON = canadaGeoJSON;
+
         map.addSource('province-polygons', {
             type: 'geojson',
             data: canadaGeoJSON,
@@ -1514,9 +1517,9 @@ function updateMapColors() {
     const currentScope = getCurrentDataScope();
     
     const source = elements.map.getSource('province-polygons');
-    if (!source || !source._data) return;
+    if (!source || !appState.canadaGeoJSON) return;
     
-    source._data.features = source._data.features.map(feature => {
+    appState.canadaGeoJSON.features = appState.canadaGeoJSON.features.map(feature => {
         const provinceId = feature.properties.id;
         const dataValue = getScopedValueForProvince(provinceId);
         let color = '#ff0080';
@@ -1538,7 +1541,7 @@ function updateMapColors() {
         };
     });
     
-    elements.map.getSource('province-polygons').setData(source._data);
+    source.setData(appState.canadaGeoJSON);
 }
 
 function renderCharts(metrics, provinceId) {
