@@ -737,7 +737,9 @@ function addSubprovincialGDPLayer(map) {
         });
         console.log('✅ Added subprovincial GDP source');
 
-        // Add fill layer
+        // Add fill layer with GDP-based heatmap colors
+        // Colors are pre-computed in the data (GDP-based or random for missing data)
+        // This layer will be added at the end, then moved to the correct position
         map.addLayer({
             id: 'subprovincial-gdp-circles',
             type: 'fill',
@@ -746,31 +748,20 @@ function addSubprovincialGDPLayer(map) {
                 visibility: 'none'
             },
             paint: {
+                // Use pre-computed color from feature properties with fallback
                 'fill-color': [
-                    'case',
-                    ['has', 'gdp'],
-                    [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'gdp'],
-                        0, '#ff0080',      // Very Low: $0
-                        500, '#ff0080',    // Very Low: <$500M
-                        2000, '#f81ce5',    // Low: $500M-$2B
-                        5000, '#7928ca',    // Moderate: $2B-$5B
-                        10000, '#0070f3',   // High: $5B-$10B
-                        20000, '#00d9ff',   // Very High: $10B-$20B
-                        50000, '#00d9ff'    // Very High: $20B+ (clamp to highest color)
-                    ],
-                    '#ff0080'  // Fallback color if gdp property is missing
+                    'coalesce',
+                    ['get', 'color'],
+                    '#7928ca'  // Fallback purple color if color property is missing
                 ],
-                'fill-opacity': 0.7,
+                'fill-opacity': 0.9,
                 'fill-outline-color': '#ffffff',
                 'fill-outline-width': 0
             }
         });
         console.log('✅ Added subprovincial GDP fill layer');
 
-        // Add outline layer for sub-provincial regions
+        // Add outline layer for sub-provincial regions (after the fill layer)
         map.addLayer({
             id: 'subprovincial-gdp-outlines',
             type: 'line',
@@ -780,11 +771,15 @@ function addSubprovincialGDPLayer(map) {
             },
             paint: {
                 'line-color': '#ffffff',
-                'line-width': 1,
-                'line-opacity': 0.8
+                'line-width': 1.5,
+                'line-opacity': 0.9
             }
         });
         console.log('✅ Added subprovincial GDP outline layer');
+        
+        // Layers will be in order: provinces -> sub-provincial -> cities
+        // This ensures sub-provincial is above provinces but below cities
+        console.log('✅ Sub-provincial layers added - will appear above province layers');
         
     } catch (error) {
         console.error('❌ Error adding subprovincial GDP layers:', error);
@@ -815,7 +810,7 @@ function showSubprovincialGDPForProvince(provinceId) {
     console.log(`📍 Got ${patches.length} sub-provincial GDP patches for ${provinceId}`);
 
     if (patches.length === 0) {
-        console.warn(`⚠️ No sub-provincial GDP patches found for ${provinceId} - check console for details`);
+        console.warn(`⚠️ No census divisions found for ${provinceId} - check console for details`);
         // Still update state so legend shows, but don't show empty layer
         appState.subprovincialView = true;
         updateLegend();
@@ -834,15 +829,22 @@ function showSubprovincialGDPForProvince(provinceId) {
         });
     }
 
-    // Validate and filter patches - ensure they have valid geometries
+    // Validate patches - ensure they have valid geometries and colors
+    // Include ALL census divisions, even those without GDP data (they'll have random colors)
     const validPatches = patches.filter(p => {
         if (!p.geometry || !p.geometry.type) {
             console.warn('⚠️ Patch missing geometry:', p.properties?.cd_code);
             return false;
         }
-        if (!p.properties || p.properties.gdp === undefined) {
-            console.warn('⚠️ Patch missing GDP:', p.properties?.cd_code);
+        // Ensure properties exist and color is set (either GDP-based or random)
+        if (!p.properties) {
+            console.warn('⚠️ Patch missing properties');
             return false;
+        }
+        if (!p.properties.color) {
+            console.warn('⚠️ Patch missing color, assigning fallback:', p.properties?.cd_code);
+            // Assign a fallback color if somehow missing
+            p.properties.color = '#7928ca';
         }
         return true;
     });
@@ -859,12 +861,25 @@ function showSubprovincialGDPForProvince(provinceId) {
     console.log(`   Features count: ${validPatches.length}`);
     if (validPatches.length > 0) {
         console.log(`   First feature GDP: ${validPatches[0].properties.gdp}`);
+        console.log(`   First feature color: ${validPatches[0].properties.color}`);
+        console.log(`   First feature hasGDPData: ${validPatches[0].properties.hasGDPData}`);
         console.log(`   First feature geometry type: ${validPatches[0].geometry?.type}`);
         console.log(`   First feature coordinates sample: ${JSON.stringify(validPatches[0].geometry?.coordinates?.[0]?.[0]?.slice(0, 2))}`);
+        
+        // Log a sample of all colors being used
+        const uniqueColors = [...new Set(validPatches.map(p => p.properties.color))];
+        console.log(`   Unique colors in data: ${uniqueColors.join(', ')}`);
     }
     
     source.setData(geoJSONData);
     console.log('✅ Data set to source');
+    
+    // Debug: Check if cd_code is being read correctly
+    if (validPatches.length > 0) {
+        console.log('🔍 First feature cd_code:', validPatches[0].properties.cd_code, 'type:', typeof validPatches[0].properties.cd_code);
+        console.log('🔍 First feature gdp:', validPatches[0].properties.gdp);
+        console.log('🔍 First feature color:', validPatches[0].properties.color);
+    }
     
     // Make layers visible immediately - trust that we just set valid data
     console.log('🎨 Making layers visible...');
@@ -876,6 +891,24 @@ function showSubprovincialGDPForProvince(provinceId) {
     if (fillLayer) {
         map.setLayoutProperty('subprovincial-gdp-circles', 'visibility', 'visible');
         console.log('✅ Sub-provincial fill layer made visible');
+        
+        // Force a repaint and verify the layer paint properties
+        const fillColor = map.getPaintProperty('subprovincial-gdp-circles', 'fill-color');
+        const fillOpacity = map.getPaintProperty('subprovincial-gdp-circles', 'fill-opacity');
+        const visibility = map.getLayoutProperty('subprovincial-gdp-circles', 'visibility');
+        console.log('🎨 Fill color:', fillColor);
+        console.log('🎨 Fill opacity:', fillOpacity);
+        console.log('🎨 Visibility:', visibility);
+        
+        // Check layer order
+        const layers = map.getStyle().layers;
+        const cdLayerIndex = layers.findIndex(l => l.id === 'subprovincial-gdp-circles');
+        const provinceLayerIndex = layers.findIndex(l => l.id === 'province-fills');
+        console.log('📊 CD layer index:', cdLayerIndex, 'Province layer index:', provinceLayerIndex);
+        
+        // Try to force a style update
+        map.setPaintProperty('subprovincial-gdp-circles', 'fill-opacity', 0.9);
+        map.triggerRepaint();
     } else {
         console.error('❌ Sub-provincial fill layer not found - layer may not be initialized');
     }
@@ -890,16 +923,18 @@ function showSubprovincialGDPForProvince(provinceId) {
     // Force map to repaint and update
     map.triggerRepaint();
 
-    // Hide province fills completely to show only census divisions
+    // Keep province fills visible but make them more transparent so other provinces remain clickable
+    // The selected province's census divisions will show on top
     if (map.getLayer('province-fills')) {
-        map.setLayoutProperty('province-fills', 'visibility', 'none');
-        console.log('✅ Province fills hidden');
+        map.setLayoutProperty('province-fills', 'visibility', 'visible');
+        map.setPaintProperty('province-fills', 'fill-opacity', 0.15); // Very transparent but still clickable
+        console.log('✅ Province fills kept visible with reduced opacity');
     }
     
-    // Also hide city circles when showing census divisions
+    // Keep city circles visible when showing census divisions
     if (map.getLayer('city-circles')) {
-        map.setLayoutProperty('city-circles', 'visibility', 'none');
-        console.log('✅ City circles hidden');
+        map.setLayoutProperty('city-circles', 'visibility', 'visible');
+        console.log('✅ City circles kept visible');
     }
 
     // Update state and legend for sub-provincial view
@@ -1655,27 +1690,40 @@ function updateLegend() {
         elements.legendNote.textContent = `Map colors reflect ${scopeLabel} for GDP`;
         
         if (isSubprovincial) {
-            // Sub-provincial GDP ranges (census division level - much smaller than provinces)
+            // Sub-provincial GDP heatmap (census division level)
+            // Uses relative ranking within province for better visual distinction
             elements.legendItems.innerHTML = `
                 <div class="legend-item">
                     <span class="legend-marker" style="background-color: #00d9ff;"></span>
-                    <span>Very High ($10B+)</span>
+                    <span>Top 12.5%</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #00a8ff;"></span>
+                    <span>12.5-25%</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-marker" style="background-color: #0070f3;"></span>
-                    <span>High ($5B-$10B)</span>
+                    <span>25-37.5%</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #0060d9;"></span>
+                    <span>37.5-50%</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-marker" style="background-color: #7928ca;"></span>
-                    <span>Moderate ($2B-$5B)</span>
+                    <span>50-62.5%</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #a020d0;"></span>
+                    <span>62.5-75%</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-marker" style="background-color: #f81ce5;"></span>
-                    <span>Low ($500M-$2B)</span>
+                    <span>75-87.5%</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-marker" style="background-color: #ff0080;"></span>
-                    <span>Very Low (<$500M)</span>
+                    <span>Bottom 12.5%</span>
                 </div>
             `;
         } else if (scope === 'region') {

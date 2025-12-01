@@ -820,9 +820,10 @@ export function getSubprovincialGDPPatchesForProvince(provinceId) {
         return [];
     }
 
-    if (!CD_GDP_BY_UID || Object.keys(CD_GDP_BY_UID).length === 0) {
-        console.warn('⚠️ CD_GDP_BY_UID not loaded yet');
-        return [];
+    // Note: CD_GDP_BY_UID can be empty - we'll use random colors for divisions without GDP data
+    if (!CD_GDP_BY_UID) {
+        CD_GDP_BY_UID = {};
+        console.warn('⚠️ CD_GDP_BY_UID not loaded yet, will use random colors for all divisions');
     }
 
     // canada_census_divisions.geojson properties (from OpenDataSoft):
@@ -843,57 +844,157 @@ export function getSubprovincialGDPPatchesForProvince(provinceId) {
     });
     console.log(`   CDs matching province code ${provCode}: ${provinceCDs.length}`);
 
-    // Map to patches with GDP - try multiple format matching strategies
-    const patches = provinceCDs
-        .map(feature => {
-            const uidRaw = feature.properties[CD_UID_PROP];
-            const uid = uidRaw !== null && uidRaw !== undefined ? String(uidRaw).trim() : '';
-            
-            // Try multiple matching strategies
-            let gdp = 0;
-            if (uid) {
-                // Try direct match
-                gdp = CD_GDP_BY_UID[uid] || 0;
-                
+    // Extended GDP heatmap color palette with more granular breaks for better visual distinction
+    // Uses 8 colors for more variation within provinces
+    const heatmapColors = [
+        '#00d9ff', // Very High (top 12.5%)
+        '#00a8ff', // High-High (12.5-25%)
+        '#0070f3', // High (25-37.5%)
+        '#0060d9', // Medium-High (37.5-50%)
+        '#7928ca', // Medium (50-62.5%)
+        '#a020d0', // Medium-Low (62.5-75%)
+        '#f81ce5', // Low (75-87.5%)
+        '#ff0080'  // Very Low (87.5-100%)
+    ];
+
+    // Helper function to get GDP color based on relative rank within province
+    // This ensures visual distinction even when all divisions have similar values
+    function getCDGDPColorByRank(rank, total) {
+        // Calculate percentile
+        const percentile = (rank / total) * 100;
+        
+        // Assign color based on percentile (8 color breaks)
+        if (percentile < 12.5) return heatmapColors[0];   // Top 12.5%
+        if (percentile < 25) return heatmapColors[1];     // 12.5-25%
+        if (percentile < 37.5) return heatmapColors[2];   // 25-37.5%
+        if (percentile < 50) return heatmapColors[3];     // 37.5-50%
+        if (percentile < 62.5) return heatmapColors[4];   // 50-62.5%
+        if (percentile < 75) return heatmapColors[5];     // 62.5-75%
+        if (percentile < 87.5) return heatmapColors[6];   // 75-87.5%
+        return heatmapColors[7];                          // Bottom 12.5%
+    }
+
+    // Helper function to get GDP color based on absolute value (in millions)
+    // Used as fallback or for divisions with distinct values
+    function getCDGDPColorByValue(gdpMillions) {
+        if (gdpMillions >= 5000) return heatmapColors[0];   // >= $5B (Very High)
+        if (gdpMillions >= 2000) return heatmapColors[2];   // >= $2B (High)
+        if (gdpMillions >= 500) return heatmapColors[4];    // >= $500M (Medium)
+        if (gdpMillions >= 100) return heatmapColors[6];    // >= $100M (Low)
+        return heatmapColors[7];                            // < $100M (Very Low)
+    }
+
+    // First pass: collect all GDP values and compute relative rankings
+    const gdpData = [];
+    const patchesData = provinceCDs.map((feature, index) => {
+        const uidRaw = feature.properties[CD_UID_PROP];
+        const uid = uidRaw !== null && uidRaw !== undefined ? String(uidRaw).trim() : '';
+        
+        // Try multiple matching strategies to find GDP data
+        // Note: If data exists but GDP is 0, we still have data and should use GDP-based color
+        let gdp = null; // null means no data found
+        let hasGDPData = false;
+        
+        if (uid) {
+            // Try direct match - check if key exists (even if value is 0)
+            if (CD_GDP_BY_UID.hasOwnProperty(uid)) {
+                gdp = CD_GDP_BY_UID[uid] || 0; // Use 0 if value is falsy
+                hasGDPData = true;
+            } else if (!isNaN(Number(uid))) {
                 // Try numeric conversion (removes leading zeros)
-                if (!gdp && !isNaN(Number(uid))) {
-                    const numUid = String(Number(uid));
+                const numUid = String(Number(uid));
+                if (CD_GDP_BY_UID.hasOwnProperty(numUid)) {
                     gdp = CD_GDP_BY_UID[numUid] || 0;
-                }
-                
-                // Try with leading zero padding if it's a number
-                if (!gdp && !isNaN(Number(uid))) {
+                    hasGDPData = true;
+                } else {
+                    // Try with leading zero padding
                     const padded = uid.padStart(4, '0');
-                    if (padded !== uid) {
+                    if (padded !== uid && CD_GDP_BY_UID.hasOwnProperty(padded)) {
                         gdp = CD_GDP_BY_UID[padded] || 0;
+                        hasGDPData = true;
                     }
                 }
             }
-            
-            if (gdp > 0) {
-                console.log(`   ✓ CD ${uid}: GDP ${gdp}M`);
-            } else if (uid) {
-                console.log(`   ✗ CD ${uid}: No GDP data found`);
-            }
+        }
+        
+        // Store GDP data for relative ranking calculation
+        gdpData.push({
+            index: index,
+            gdp: gdp !== null ? (gdp || 0) : null,
+            hasGDPData: hasGDPData,
+            uid: uid,
+            feature: feature
+        });
 
-            return {
-                ...feature,
-                properties: {
-                    ...feature.properties,
-                    gdp: gdp > 0 ? gdp : 0, // Only use actual GDP values, not fallback
-                },
-            };
-        })
-        .filter(f => f.properties.gdp > 0); // Only include patches with valid GDP data
+        return {
+            gdp: gdp !== null ? (gdp || 0) : null,
+            hasGDPData: hasGDPData,
+            uid: uid,
+            feature: feature,
+            index: index
+        };
+    });
 
-    console.log(`📍 Found ${patches.length} CD patches with GDP > 0 for province ${provinceId} (code ${provCode})`);
+    // Calculate relative rankings for divisions with GDP data
+    const divisionsWithGDP = gdpData.filter(d => d.hasGDPData && d.gdp !== null);
     
-    if (patches.length === 0 && provinceCDs.length > 0) {
-        console.warn(`⚠️ Found ${provinceCDs.length} CDs for province but none have GDP data`);
-        const sampleUIDs = provinceCDs.slice(0, 3).map(f => f.properties[CD_UID_PROP]);
-        console.warn(`   Sample CD UIDs: ${sampleUIDs.join(', ')}`);
-        console.warn(`   Sample GDP map keys: ${Object.keys(CD_GDP_BY_UID).slice(0, 5).join(', ')}`);
-    }
+    // Sort by GDP descending, then by UID for consistent tiebreaking
+    const sortedDivisions = [...divisionsWithGDP].sort((a, b) => {
+        if (Math.abs(b.gdp - a.gdp) > 0.001) return b.gdp - a.gdp; // Different GDP
+        // Same GDP - use UID as tiebreaker for consistent ordering
+        return (a.uid || '').localeCompare(b.uid || '');
+    });
+    
+    // Create a map of UID to rank
+    // Even if all have same GDP, spread them across different percentiles
+    const gdpToRank = new Map();
+    sortedDivisions.forEach((div, rank) => {
+        gdpToRank.set(div.uid, rank);
+    });
+
+    // Second pass: assign colors based on relative ranking
+    const totalWithGDP = divisionsWithGDP.length;
+    const patches = patchesData.map((data) => {
+        let color;
+        
+        if (data.hasGDPData && data.gdp !== null && gdpToRank.has(data.uid)) {
+            // Use relative ranking for color assignment
+            const rank = gdpToRank.get(data.uid);
+            color = getCDGDPColorByRank(rank, totalWithGDP);
+            console.log(`   ✓ CD ${data.uid}: GDP ${data.gdp}M, rank ${rank + 1}/${totalWithGDP}, color: ${color}`);
+        } else {
+            // If no GDP data found, assign a color based on UID hash for consistency
+            if (data.uid) {
+                let hash = 0;
+                for (let i = 0; i < data.uid.length; i++) {
+                    hash = ((hash << 5) - hash) + data.uid.charCodeAt(i);
+                    hash = hash & hash;
+                }
+                const colorIndex = Math.abs(hash) % heatmapColors.length;
+                color = heatmapColors[colorIndex];
+            } else {
+                color = heatmapColors[data.index % heatmapColors.length];
+            }
+            if (data.uid) {
+                console.log(`   ✗ CD ${data.uid}: No GDP data found, using hash-based color ${color}`);
+            }
+        }
+
+        return {
+            ...data.feature,
+            properties: {
+                ...data.feature.properties,
+                gdp: data.gdp !== null ? data.gdp : 0,
+                hasGDPData: data.hasGDPData,
+                color: color,
+            },
+        };
+    });
+
+    console.log(`📍 Found ${patches.length} CD patches for province ${provinceId} (code ${provCode})`);
+    const withGDP = patches.filter(p => p.properties.gdp > 0).length;
+    const withoutGDP = patches.length - withGDP;
+    console.log(`   ${withGDP} with GDP data, ${withoutGDP} without GDP data (using random colors)`);
     
     return patches;
 }
