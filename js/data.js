@@ -30,6 +30,12 @@ const PROVINCE_CODE_MAP = {
     62: 'nu'
 };
 
+// Helper: map provinceId ('on') -> numeric province code string ('35')
+const PROVINCE_ID_TO_CODE = Object.entries(PROVINCE_CODE_MAP).reduce((acc, [code, id]) => {
+    acc[id] = String(code);
+    return acc;
+}, {});
+
 const PROVINCE_POPULATIONS = {
     'nl': 510_550,
     'pe': 154_331,
@@ -117,8 +123,115 @@ export let REGION_GDP_METRICS = {};
 export let REGION_INCOME_METRICS = {};
 export let CITY_DATA = {};
 
+// Sub-provincial GDP structures (from regional-gdp-data.csv, CMA + non-CMA)
+export let SUBPROVINCIAL_GDP_BY_PROVINCE = {};
+// Census Division GDP and geometry (for sub-provincial heatmap)
+export let CD_GDP_BY_UID = {};
+export let CD_FEATURES = [];
+
 export let CURRENT_DATA_TYPE = 'gdp';
 export let CURRENT_DATA_SCOPE = 'province';
+
+// ---------- Helpers for parsing ----------
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            result.push(current);
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+
+    result.push(current);
+    return result;
+}
+
+function normalizeProvinceName(rawName) {
+    if (!rawName) return null;
+    // Remove quotes, footnote digits, and trim whitespace
+    return rawName
+        .replace(/"/g, '')
+        .replace(/\d+$/g, '')
+        .trim();
+}
+
+function getProvinceNameFromGeography(geoRaw) {
+    if (!geoRaw) return null;
+    const geo = geoRaw.replace(/"/g, '').trim();
+
+    // Exact match to a province row
+    if (PROVINCE_NAME_MAP[geo]) {
+        return geo;
+    }
+
+    // Non-CMA rows: "Non-census metropolitan areas, Ontario"
+    if (geo.startsWith('Non-census metropolitan areas,')) {
+        const parts = geo.split(',');
+        if (parts.length >= 2) {
+            return normalizeProvinceName(parts[1]);
+        }
+    }
+
+    // Shared CMA parts: "Ottawa – Gatineau, Ontario part, Ontario/Quebec"
+    if (geo.includes('Ontario part')) {
+        return 'Ontario';
+    }
+    if (geo.includes('Quebec part')) {
+        return 'Quebec';
+    }
+
+    // Generic CMA rows: "Saguenay, Quebec"
+    const parts = geo.split(',');
+    if (parts.length >= 2) {
+        const provincePart = normalizeProvinceName(parts[parts.length - 1]);
+        if (PROVINCE_NAME_MAP[provincePart]) {
+            return provincePart;
+        }
+    }
+
+    return null;
+}
+
+function buildRegionId(baseName, provinceId) {
+    const safeBase = (baseName || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    return `${provinceId}-${safeBase}`;
+}
+
+function buildRegionName(geoRaw, provinceName) {
+    const geo = geoRaw.replace(/"/g, '').trim();
+
+    if (geo.startsWith('Non-census metropolitan areas,')) {
+        return `${provinceName} (Non-CMA)`;
+    }
+
+    if (geo.includes('Ontario part')) {
+        const cityPart = geo.split(',')[0].trim();
+        return `${cityPart} (ON part)`;
+    }
+    if (geo.includes('Quebec part')) {
+        const cityPart = geo.split(',')[0].trim();
+        return `${cityPart} (QC part)`;
+    }
+
+    // CMA: keep the city part
+    const cityPart = geo.split(',')[0].trim();
+    return cityPart || geo;
+}
 
 function parseGDPCSV(csvText) {
     const lines = csvText.trim().split('\n');
@@ -145,6 +258,89 @@ function parseGDPCSV(csvText) {
     }
     
     return data;
+}
+
+function parseRegionalGDPCSV(csvText) {
+    const lines = csvText.split(/\r?\n/);
+    // Find the header row that starts the data section
+    let headerIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].startsWith('"Geography"')) {
+            headerIndex = i;
+            break;
+        }
+    }
+
+    if (headerIndex === -1) {
+        console.warn('⚠️ Could not find Geography header in regional GDP CSV');
+        return {};
+    }
+
+    const subprovincialByProvince = {};
+
+    // Skip header row and units row
+    for (let i = headerIndex + 2; i < lines.length; i++) {
+        const rawLine = lines[i];
+        if (!rawLine || !rawLine.trim()) continue;
+        if (rawLine.startsWith('Symbol legend:')) break;
+
+        const cols = parseCSVLine(rawLine);
+        if (!cols.length) continue;
+
+        const geographyRaw = cols[0];
+        const provinceName = getProvinceNameFromGeography(geographyRaw);
+        if (!provinceName) {
+            continue;
+        }
+
+        const provinceId = PROVINCE_NAME_MAP[provinceName];
+        if (!provinceId) continue;
+
+        const geoClean = geographyRaw.replace(/"/g, '').trim();
+
+        // Skip pure provincial total rows – we only want CMA / non-CMA records
+        if (geoClean === provinceName) continue;
+
+        const isNonCMA = geoClean.startsWith('Non-census metropolitan areas,');
+        const isSharedPart = geoClean.includes('Ontario part') || geoClean.includes('Quebec part');
+
+        const regionType = isNonCMA
+            ? 'non_cma'
+            : (isSharedPart ? 'cma_shared_part' : 'cma');
+
+        // Columns 1-5 correspond to 2017-2021
+        const years = ['2017', '2018', '2019', '2020', '2021'];
+        const gdpByYear = {};
+
+        for (let j = 0; j < years.length; j++) {
+            const colIdx = j + 1;
+            const rawValue = cols[colIdx] !== undefined ? cols[colIdx].replace(/"/g, '').trim() : '';
+            if (!rawValue || rawValue === '..') {
+                gdpByYear[years[j]] = null;
+                continue;
+            }
+            const numeric = parseFloat(rawValue.replace(/,/g, ''));
+            gdpByYear[years[j]] = isNaN(numeric) ? null : numeric;
+        }
+
+        const regionName = buildRegionName(geographyRaw, provinceName);
+        const regionId = buildRegionId(regionName, provinceId);
+
+        if (!subprovincialByProvince[provinceId]) {
+            subprovincialByProvince[provinceId] = [];
+        }
+
+        subprovincialByProvince[provinceId].push({
+            id: regionId,
+            name: regionName,
+            provinceId,
+            provinceName,
+            type: regionType,
+            gdpByYear,
+        });
+    }
+
+    return subprovincialByProvince;
 }
 
 function parseIncomeCSV(csvText) {
@@ -408,6 +604,50 @@ function buildIncomeProvinceData(incomeData) {
     return { provinces, metrics, regionMetrics };
 }
 
+// Parse CD-level GDP CSV generated by test.py
+// Expected columns: cd_uid, gdp_2021_millions
+function parseCDGDPCSV(csvText) {
+    const lines = csvText.trim().split(/\r?\n/);
+    if (!lines.length) return {};
+
+    // Parse header line using proper CSV parsing
+    const headerLine = lines[0];
+    const headers = parseCSVLine(headerLine).map(h => h.replace(/"/g, '').trim());
+    const uidIdx = headers.indexOf('cd_uid');
+    const gdpIdx = headers.indexOf('gdp_2021_millions');
+
+    if (uidIdx === -1 || gdpIdx === -1) {
+        console.warn('⚠️ CD GDP CSV missing expected headers cd_uid / gdp_2021_millions');
+        console.warn('   Available headers:', headers);
+        return {};
+    }
+
+    const map = {};
+
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line || !line.trim()) continue;
+        
+        // Use proper CSV parsing to handle quoted fields
+        const cols = parseCSVLine(line);
+        if (cols.length <= Math.max(uidIdx, gdpIdx)) {
+            continue;
+        }
+        
+        const uidRaw = cols[uidIdx] !== undefined ? cols[uidIdx].replace(/"/g, '').trim() : '';
+        const gdpRaw = cols[gdpIdx] !== undefined ? cols[gdpIdx].replace(/"/g, '').trim() : '';
+        if (!uidRaw || !gdpRaw) continue;
+
+        const gdp = parseFloat(gdpRaw);
+        if (isNaN(gdp)) continue;
+
+        map[uidRaw] = gdp;
+    }
+
+    console.log(`✅ Parsed ${Object.keys(map).length} CD GDP entries`);
+    return map;
+}
+
 function buildRegionIncomeMetrics(incomeData) {
     const metrics = {};
     
@@ -466,6 +706,17 @@ export async function loadGDPData() {
         
         const gdpData = parseGDPCSV(csvText);
         const { provinces, metrics, regionMetrics } = buildGDPProvinceData(gdpData);
+
+        // Load sub-provincial GDP data (CMA + non-CMA by province)
+        try {
+            const regionalResponse = await fetch('./data/regional-gdp-data.csv');
+            const regionalCsvText = await regionalResponse.text();
+            SUBPROVINCIAL_GDP_BY_PROVINCE = parseRegionalGDPCSV(regionalCsvText);
+            console.log('✅ Loaded sub-provincial GDP data for provinces');
+        } catch (subError) {
+            console.warn('⚠️ Failed to load sub-provincial GDP data:', subError);
+            SUBPROVINCIAL_GDP_BY_PROVINCE = {};
+        }
         
         CANADIAN_PROVINCES_GDP = provinces;
         PROVINCE_GDP_METRICS = metrics;
@@ -518,12 +769,133 @@ export async function loadProvinceData() {
     const gdpSuccess = await loadGDPData();
     const incomeSuccess = await loadIncomeData();
     const citySuccess = await loadCityData();
+
+    // Load census-division-level GDP allocation for sub-provincial heatmap
+    try {
+        const resp = await fetch('./data/census_division_gdp_2021.csv');
+        const csvText = await resp.text();
+        CD_GDP_BY_UID = parseCDGDPCSV(csvText);
+        console.log('✅ Loaded CD GDP rows:', Object.keys(CD_GDP_BY_UID).length);
+    } catch (e) {
+        console.warn('⚠️ Failed to load CD GDP CSV:', e);
+        CD_GDP_BY_UID = {};
+    }
+
+    // Load census division geometries (canada_census_divisions.geojson)
+    try {
+        const geoResp = await fetch('./canada_census_divisions.geojson');
+        if (!geoResp.ok) {
+            throw new Error(`HTTP ${geoResp.status}: ${geoResp.statusText}`);
+        }
+        const geo = await geoResp.json();
+        CD_FEATURES = Array.isArray(geo.features) ? geo.features : [];
+        console.log('✅ Loaded CD boundary features:', CD_FEATURES.length);
+        if (CD_FEATURES.length > 0) {
+            const sample = CD_FEATURES[0];
+            console.log('   Sample CD feature properties:', Object.keys(sample.properties || {}));
+            console.log('   Sample cd_code:', sample.properties?.cd_code);
+            console.log('   Sample prov_code:', sample.properties?.prov_code);
+        }
+    } catch (e) {
+        console.error('❌ Failed to load CD boundary features:', e);
+        CD_FEATURES = [];
+    }
     
     return gdpSuccess && incomeSuccess && citySuccess;
 }
 
 export function getCitiesForProvince(provinceId) {
     return CITY_DATA[provinceId] || [];
+}
+
+export function getSubprovincialGDPPatchesForProvince(provinceId) {
+    const provCode = PROVINCE_ID_TO_CODE[provinceId];
+    if (!provCode) {
+        console.warn(`⚠️ No province code found for ${provinceId}`);
+        return [];
+    }
+
+    if (!CD_FEATURES || CD_FEATURES.length === 0) {
+        console.warn('⚠️ CD_FEATURES not loaded yet');
+        return [];
+    }
+
+    if (!CD_GDP_BY_UID || Object.keys(CD_GDP_BY_UID).length === 0) {
+        console.warn('⚠️ CD_GDP_BY_UID not loaded yet');
+        return [];
+    }
+
+    // canada_census_divisions.geojson properties (from OpenDataSoft):
+    //  - cd_code: census division ID (string/number, e.g. '5919')
+    //  - prov_code: province/territory code (string/number, e.g. '59' for BC)
+    const CD_UID_PROP = 'cd_code';
+    const CD_PROV_CODE_PROP = 'prov_code';
+
+    console.log(`🔍 Looking for CDs in province ${provinceId} (code: ${provCode})`);
+    console.log(`   Total CD features: ${CD_FEATURES.length}`);
+    console.log(`   Total CD GDP entries: ${Object.keys(CD_GDP_BY_UID).length}`);
+
+    // Filter by province code
+    const provinceCDs = CD_FEATURES.filter(f => {
+        if (!f.properties) return false;
+        const featureProvCode = String(f.properties[CD_PROV_CODE_PROP] || '').trim();
+        return featureProvCode === provCode;
+    });
+    console.log(`   CDs matching province code ${provCode}: ${provinceCDs.length}`);
+
+    // Map to patches with GDP - try multiple format matching strategies
+    const patches = provinceCDs
+        .map(feature => {
+            const uidRaw = feature.properties[CD_UID_PROP];
+            const uid = uidRaw !== null && uidRaw !== undefined ? String(uidRaw).trim() : '';
+            
+            // Try multiple matching strategies
+            let gdp = 0;
+            if (uid) {
+                // Try direct match
+                gdp = CD_GDP_BY_UID[uid] || 0;
+                
+                // Try numeric conversion (removes leading zeros)
+                if (!gdp && !isNaN(Number(uid))) {
+                    const numUid = String(Number(uid));
+                    gdp = CD_GDP_BY_UID[numUid] || 0;
+                }
+                
+                // Try with leading zero padding if it's a number
+                if (!gdp && !isNaN(Number(uid))) {
+                    const padded = uid.padStart(4, '0');
+                    if (padded !== uid) {
+                        gdp = CD_GDP_BY_UID[padded] || 0;
+                    }
+                }
+            }
+            
+            if (gdp > 0) {
+                console.log(`   ✓ CD ${uid}: GDP ${gdp}M`);
+            } else if (uid) {
+                console.log(`   ✗ CD ${uid}: No GDP data found`);
+            }
+
+            return {
+                ...feature,
+                properties: {
+                    ...feature.properties,
+                    gdp: gdp > 0 ? gdp : 0, // Only use actual GDP values, not fallback
+                },
+            };
+        })
+        .filter(f => f.properties.gdp > 0); // Only include patches with valid GDP data
+
+    console.log(`📍 Found ${patches.length} CD patches with GDP > 0 for province ${provinceId} (code ${provCode})`);
+    
+    if (patches.length === 0 && provinceCDs.length > 0) {
+        console.warn(`⚠️ Found ${provinceCDs.length} CDs for province but none have GDP data`);
+        const sampleUIDs = provinceCDs.slice(0, 3).map(f => f.properties[CD_UID_PROP]);
+        console.warn(`   Sample CD UIDs: ${sampleUIDs.join(', ')}`);
+        console.warn(`   Sample GDP map keys: ${Object.keys(CD_GDP_BY_UID).slice(0, 5).join(', ')}`);
+    }
+    
+    return patches;
 }
 
 export function getCityById(provinceId, cityId) {

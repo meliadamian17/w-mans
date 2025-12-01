@@ -26,6 +26,7 @@ import {
     getRegionNameForProvince,
     getRegionMetricsForProvince,
     getScopedValueForProvince,
+    getSubprovincialGDPPatchesForProvince,
 } from './data.js';
 
 const PROVINCE_POPULATIONS = {
@@ -67,6 +68,7 @@ const appState = {
     nightSkyMouseLeaveHandler: null,
     legendPanelWasHidden: false,
     canadaGeoJSON: null,
+    subprovincialView: false, // Track if we're showing sub-provincial heatmap
 };
 
 const elements = {
@@ -356,6 +358,7 @@ async function initMap() {
                 
                 await addProvincePolygons(map);
                 addCityMarkers(map);
+                addSubprovincialGDPLayer(map);
                 
                 appState.mapLoaded = true;
                 resolve();
@@ -721,6 +724,228 @@ function addCityMarkers(map) {
     });
 }
 
+function addSubprovincialGDPLayer(map) {
+    try {
+        console.log('📍 Adding subprovincial GDP source and layers...');
+        
+        map.addSource('subprovincial-gdp', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: []
+            }
+        });
+        console.log('✅ Added subprovincial GDP source');
+
+        // Add fill layer
+        map.addLayer({
+            id: 'subprovincial-gdp-circles',
+            type: 'fill',
+            source: 'subprovincial-gdp',
+            layout: {
+                visibility: 'none'
+            },
+            paint: {
+                'fill-color': [
+                    'case',
+                    ['has', 'gdp'],
+                    [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'gdp'],
+                        0, '#ff0080',      // Very Low: $0
+                        500, '#ff0080',    // Very Low: <$500M
+                        2000, '#f81ce5',    // Low: $500M-$2B
+                        5000, '#7928ca',    // Moderate: $2B-$5B
+                        10000, '#0070f3',   // High: $5B-$10B
+                        20000, '#00d9ff',   // Very High: $10B-$20B
+                        50000, '#00d9ff'    // Very High: $20B+ (clamp to highest color)
+                    ],
+                    '#ff0080'  // Fallback color if gdp property is missing
+                ],
+                'fill-opacity': 0.7,
+                'fill-outline-color': '#ffffff',
+                'fill-outline-width': 0
+            }
+        });
+        console.log('✅ Added subprovincial GDP fill layer');
+
+        // Add outline layer for sub-provincial regions
+        map.addLayer({
+            id: 'subprovincial-gdp-outlines',
+            type: 'line',
+            source: 'subprovincial-gdp',
+            layout: {
+                visibility: 'none'
+            },
+            paint: {
+                'line-color': '#ffffff',
+                'line-width': 1,
+                'line-opacity': 0.8
+            }
+        });
+        console.log('✅ Added subprovincial GDP outline layer');
+        
+    } catch (error) {
+        console.error('❌ Error adding subprovincial GDP layers:', error);
+    }
+}
+
+function showSubprovincialGDPForProvince(provinceId) {
+    const map = elements.map;
+    if (!map) {
+        console.warn('⚠️ Map not available');
+        return;
+    }
+
+    // Only show sub-provincial for GDP data type
+    if (getCurrentDataType() !== 'gdp') {
+        console.log('ℹ️ Sub-provincial view only available for GDP data type');
+        return;
+    }
+
+    const source = map.getSource('subprovincial-gdp');
+    if (!source) {
+        console.error('❌ Sub-provincial GDP source not found - layer may not be initialized');
+        return;
+    }
+
+    console.log(`🗺️ Loading sub-provincial GDP for province: ${provinceId}`);
+    const patches = getSubprovincialGDPPatchesForProvince(provinceId);
+    console.log(`📍 Got ${patches.length} sub-provincial GDP patches for ${provinceId}`);
+
+    if (patches.length === 0) {
+        console.warn(`⚠️ No sub-provincial GDP patches found for ${provinceId} - check console for details`);
+        // Still update state so legend shows, but don't show empty layer
+        appState.subprovincialView = true;
+        updateLegend();
+        return;
+    }
+    
+    // Debug: Log first few patches to verify structure
+    if (patches.length > 0) {
+        console.log('🔍 Sample patch:', {
+            hasGeometry: !!patches[0].geometry,
+            geometryType: patches[0].geometry?.type,
+            hasProperties: !!patches[0].properties,
+            gdp: patches[0].properties?.gdp,
+            cd_code: patches[0].properties?.cd_code,
+            prov_code: patches[0].properties?.prov_code
+        });
+    }
+
+    // Validate and filter patches - ensure they have valid geometries
+    const validPatches = patches.filter(p => {
+        if (!p.geometry || !p.geometry.type) {
+            console.warn('⚠️ Patch missing geometry:', p.properties?.cd_code);
+            return false;
+        }
+        if (!p.properties || p.properties.gdp === undefined) {
+            console.warn('⚠️ Patch missing GDP:', p.properties?.cd_code);
+            return false;
+        }
+        return true;
+    });
+    
+    console.log(`📊 Validated patches: ${validPatches.length} of ${patches.length}`);
+    
+    // Set the data
+    const geoJSONData = {
+        type: 'FeatureCollection',
+        features: validPatches
+    };
+    
+    console.log('📊 Setting GeoJSON data to source...');
+    console.log(`   Features count: ${validPatches.length}`);
+    if (validPatches.length > 0) {
+        console.log(`   First feature GDP: ${validPatches[0].properties.gdp}`);
+        console.log(`   First feature geometry type: ${validPatches[0].geometry?.type}`);
+        console.log(`   First feature coordinates sample: ${JSON.stringify(validPatches[0].geometry?.coordinates?.[0]?.[0]?.slice(0, 2))}`);
+    }
+    
+    source.setData(geoJSONData);
+    console.log('✅ Data set to source');
+    
+    // Make layers visible immediately - trust that we just set valid data
+    console.log('🎨 Making layers visible...');
+    
+    // Make layers visible - force update
+    const fillLayer = map.getLayer('subprovincial-gdp-circles');
+    const outlineLayer = map.getLayer('subprovincial-gdp-outlines');
+    
+    if (fillLayer) {
+        map.setLayoutProperty('subprovincial-gdp-circles', 'visibility', 'visible');
+        console.log('✅ Sub-provincial fill layer made visible');
+    } else {
+        console.error('❌ Sub-provincial fill layer not found - layer may not be initialized');
+    }
+
+    if (outlineLayer) {
+        map.setLayoutProperty('subprovincial-gdp-outlines', 'visibility', 'visible');
+        console.log('✅ Sub-provincial outline layer made visible');
+    } else {
+        console.warn('⚠️ Sub-provincial outline layer not found');
+    }
+    
+    // Force map to repaint and update
+    map.triggerRepaint();
+
+    // Hide province fills completely to show only census divisions
+    if (map.getLayer('province-fills')) {
+        map.setLayoutProperty('province-fills', 'visibility', 'none');
+        console.log('✅ Province fills hidden');
+    }
+    
+    // Also hide city circles when showing census divisions
+    if (map.getLayer('city-circles')) {
+        map.setLayoutProperty('city-circles', 'visibility', 'none');
+        console.log('✅ City circles hidden');
+    }
+
+    // Update state and legend for sub-provincial view
+    appState.subprovincialView = true;
+    updateLegend();
+    console.log('✅ Sub-provincial view activated');
+}
+
+function hideSubprovincialGDP() {
+    const map = elements.map;
+    if (!map) return;
+
+    const source = map.getSource('subprovincial-gdp');
+    if (source) {
+        source.setData({
+            type: 'FeatureCollection',
+            features: []
+        });
+    }
+
+    if (map.getLayer('subprovincial-gdp-circles')) {
+        map.setLayoutProperty('subprovincial-gdp-circles', 'visibility', 'none');
+    }
+
+    if (map.getLayer('subprovincial-gdp-outlines')) {
+        map.setLayoutProperty('subprovincial-gdp-outlines', 'visibility', 'none');
+    }
+
+    // Restore province fills visibility
+    if (map.getLayer('province-fills')) {
+        map.setLayoutProperty('province-fills', 'visibility', 'visible');
+        map.setPaintProperty('province-fills', 'fill-opacity', 0.3);
+        console.log('✅ Province fills restored');
+    }
+
+    // Restore city circles if a province is selected
+    if (appState.selectedProvince && map.getLayer('city-circles')) {
+        map.setLayoutProperty('city-circles', 'visibility', 'visible');
+        console.log('✅ City circles restored');
+    }
+
+    // Update state and legend back to provincial view
+    appState.subprovincialView = false;
+    updateLegend();
+}
+
 function showCitiesForProvince(provinceId) {
     const cities = getCitiesForProvince(provinceId);
     
@@ -785,6 +1010,12 @@ function selectProvince(provinceId, bounds = null) {
     
     console.log('🏙️ Showing cities for province...');
     showCitiesForProvince(provinceId);
+    
+    // Show sub-provincial GDP heatmap if in GDP mode
+    if (getCurrentDataType() === 'gdp') {
+        console.log('🗺️ Showing sub-provincial GDP heatmap...');
+        showSubprovincialGDPForProvince(provinceId);
+    }
     
     console.log('👁️ Showing panels...');
     if (elements.provinceInfoPanel) {
@@ -1336,17 +1567,29 @@ function updateDataPanel(provinceId) {
 function updateLegend() {
     const dataType = getCurrentDataType();
     const scope = getCurrentDataScope();
-    const scopeLabel = scope === 'region'
-        ? 'regional averages'
-        : (dataType === 'income' ? 'provincial averages' : 'provincial totals');
+    const isSubprovincial = appState.subprovincialView;
+    
+    let scopeLabel;
+    if (isSubprovincial) {
+        scopeLabel = 'census division totals';
+    } else if (scope === 'region') {
+        scopeLabel = 'regional averages';
+    } else {
+        scopeLabel = dataType === 'income' ? 'provincial averages' : 'provincial totals';
+    }
     
     // Update scope indicator
     if (elements.scopeIndicator) {
-        elements.scopeIndicator.textContent = scope === 'region' ? 'Regional' : 'Provincial';
-        if (scope === 'region') {
+        if (isSubprovincial) {
+            elements.scopeIndicator.textContent = 'Sub-Provincial';
             elements.scopeIndicator.classList.add('regional');
         } else {
-            elements.scopeIndicator.classList.remove('regional');
+            elements.scopeIndicator.textContent = scope === 'region' ? 'Regional' : 'Provincial';
+            if (scope === 'region') {
+                elements.scopeIndicator.classList.add('regional');
+            } else {
+                elements.scopeIndicator.classList.remove('regional');
+            }
         }
     }
     
@@ -1411,7 +1654,31 @@ function updateLegend() {
         elements.legendTitle.textContent = 'GDP Color Legend';
         elements.legendNote.textContent = `Map colors reflect ${scopeLabel} for GDP`;
         
-        if (scope === 'region') {
+        if (isSubprovincial) {
+            // Sub-provincial GDP ranges (census division level - much smaller than provinces)
+            elements.legendItems.innerHTML = `
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #00d9ff;"></span>
+                    <span>Very High ($10B+)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #0070f3;"></span>
+                    <span>High ($5B-$10B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #7928ca;"></span>
+                    <span>Moderate ($2B-$5B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #f81ce5;"></span>
+                    <span>Low ($500M-$2B)</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-marker" style="background-color: #ff0080;"></span>
+                    <span>Very Low (<$500M)</span>
+                </div>
+            `;
+        } else if (scope === 'region') {
             // Regional GDP ranges (much larger totals)
             elements.legendItems.innerHTML = `
                 <div class="legend-item">
@@ -1486,6 +1753,11 @@ function switchDataType(newDataType) {
     
     setCurrentDataType(newDataType);
     
+    // Hide sub-provincial view when switching data types
+    if (appState.subprovincialView) {
+        hideSubprovincialGDP();
+    }
+    
     updateLegend();
     
     updateTabLabels();
@@ -1494,6 +1766,13 @@ function switchDataType(newDataType) {
     
     if (appState.selectedProvince) {
         updateDataPanel(appState.selectedProvince);
+        
+        // Re-show sub-provincial GDP heatmap if switching to GDP
+        // and a province is selected and we're in provincial scope
+        if (newDataType === 'gdp' && getCurrentDataScope() === 'province') {
+            console.log('🗺️ Re-showing sub-provincial GDP for selected province...');
+            showSubprovincialGDPForProvince(appState.selectedProvince);
+        }
     }
 }
 
@@ -1502,11 +1781,23 @@ function switchDataScope(newScope) {
     const updated = setCurrentDataScope(newScope);
     if (!updated) return;
     
+    // Hide sub-provincial view when switching scope
+    if (appState.subprovincialView) {
+        hideSubprovincialGDP();
+    }
+    
     updateLegend();
     updateMapColors();
     
     if (appState.selectedProvince) {
         updateDataPanel(appState.selectedProvince);
+        
+        // Re-show sub-provincial GDP heatmap if switching to provincial scope
+        // and a province is selected and we're in GDP mode
+        if (newScope === 'province' && getCurrentDataType() === 'gdp') {
+            console.log('🗺️ Re-showing sub-provincial GDP for selected province...');
+            showSubprovincialGDPForProvince(appState.selectedProvince);
+        }
     }
 }
 
@@ -3184,6 +3475,7 @@ function closeDataPanel() {
     appState.selectedCity = null;
     
     hideCities();
+    hideSubprovincialGDP();
     
     if (elements.map) {
         elements.map.easeTo({
@@ -3290,6 +3582,7 @@ function setupEventListeners() {
                 duration: 1200,
             });
         }
+        hideSubprovincialGDP();
     });
     
     elements.btnToggleLegend?.addEventListener('click', toggleLegend);
