@@ -1,0 +1,313 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "on",
+        "regionName": "Toronto"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.2832, 42.8532],
+          [-78.4832, 42.8532],
+          [-78.4832, 44.4532],
+          [-80.2832, 44.4532],
+          [-80.2832, 42.8532]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "on",
+        "regionName": "Ottawa"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-76.4972, 44.8215],
+          [-74.8972, 44.8215],
+          [-74.8972, 46.0215],
+          [-76.4972, 46.0215],
+          [-76.4972, 44.8215]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "on",
+        "regionName": "Hamilton"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-80.4711, 42.6557],
+          [-79.2711, 42.6557],
+          [-79.2711, 43.8557],
+          [-80.4711, 43.8557],
+          [-80.4711, 42.6557]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "qc",
+        "regionName": "Montréal"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-74.3673, 44.9017],
+          [-72.7673, 44.9017],
+          [-72.7673, 46.1017],
+          [-74.3673, 46.1017],
+          [-74.3673, 44.9017]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "qc",
+        "regionName": "Québec"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-72.008, 46.0139],
+          [-70.408, 46.0139],
+          [-70.408, 47.6139],
+          [-72.008, 47.6139],
+          [-72.008, 46.0139]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "bc",
+        "regionName": "Vancouver"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-124.1207, 48.6827],
+          [-122.1207, 48.6827],
+          [-122.1207, 49.8827],
+          [-124.1207, 49.8827],
+          [-124.1207, 48.6827]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "bc",
+        "regionName": "Victoria"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-124.3656, 47.8284],
+          [-122.9656, 47.8284],
+          [-122.9656, 49.0284],
+          [-124.3656, 49.0284],
+          [-124.3656, 47.8284]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "ab",
+        "regionName": "Calgary"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-115.2719, 50.2447],
+          [-112.8719, 50.2447],
+          [-112.8719, 51.8447],
+          [-115.2719, 51.8447],
+          [-115.2719, 50.2447]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "ab",
+        "regionName": "Edmonton"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-114.6938, 52.7461],
+          [-112.2938, 52.7461],
+          [-112.2938, 54.3461],
+          [-114.6938, 54.3461],
+          [-114.6938, 52.7461]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "mb",
+        "regionName": "Winnipeg"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-98.3384, 49.2951],
+          [-95.9384, 49.2951],
+          [-95.9384, 50.4951],
+          [-98.3384, 50.4951],
+          [-98.3384, 49.2951]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "sk",
+        "regionName": "Saskatoon"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-107.87, 51.5332],
+          [-105.47, 51.5332],
+          [-105.47, 52.7332],
+          [-107.87, 52.7332],
+          [-107.87, 51.5332]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "ns",
+        "regionName": "Halifax"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-64.7752, 44.0488],
+          [-62.3752, 44.0488],
+          [-62.3752, 45.2488],
+          [-64.7752, 45.2488],
+          [-64.7752, 44.0488]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "nb",
+        "regionName": "Moncton"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-65.5782, 45.4878],
+          [-63.9782, 45.4878],
+          [-63.9782, 46.6878],
+          [-65.5782, 46.6878],
+          [-65.5782, 45.4878]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "nl",
+        "regionName": "St. John's"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-53.5126, 46.9615],
+          [-51.9126, 46.9615],
+          [-51.9126, 48.1615],
+          [-53.5126, 48.1615],
+          [-53.5126, 46.9615]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "pe",
+        "regionName": "Charlottetown"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-63.7311, 45.6382],
+          [-62.5311, 45.6382],
+          [-62.5311, 46.8382],
+          [-63.7311, 46.8382],
+          [-63.7311, 45.6382]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "yt",
+        "regionName": "Whitehorse"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-136.2568, 60.1212],
+          [-133.8568, 60.1212],
+          [-133.8568, 61.3212],
+          [-136.2568, 61.3212],
+          [-136.2568, 60.1212]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "nt",
+        "regionName": "Yellowknife"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-115.5718, 61.854],
+          [-113.1718, 61.854],
+          [-113.1718, 63.054],
+          [-115.5718, 63.054],
+          [-115.5718, 61.854]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "provinceId": "nu",
+        "regionName": "Iqaluit"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-69.717, 63.1467],
+          [-67.317, 63.1467],
+          [-67.317, 64.3467],
+          [-69.717, 64.3467],
+          [-69.717, 63.1467]
+        ]]
+      }
+    }
+  ]
+}
+
+
