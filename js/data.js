@@ -1046,10 +1046,12 @@ export function getSubprovincialGDPPatchesForProvince(provinceId) {
     });
 
     const totalWithGDP = divisionsWithGDP.length;
+    const isIncome = getCurrentDataType() === 'income';
+
     const patches = patchesData.map((data) => {
         let color;
         
-        if (data.hasGDPData && data.gdp !== null && gdpToRank.has(data.uid)) {
+        if (!isIncome && data.hasGDPData && data.gdp !== null && gdpToRank.has(data.uid)) {
             const rank = gdpToRank.get(data.uid);
             color = getCDGDPColorByRank(rank, totalWithGDP);
             console.log(`   ✓ CD ${data.uid}: GDP ${data.gdp}M, rank ${rank + 1}/${totalWithGDP}, color: ${color}`);
